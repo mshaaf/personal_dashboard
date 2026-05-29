@@ -1,0 +1,121 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --border: #242424;
+  --border-light: #2e2e2e;
+  --text: #f5f5f5;
+  --text-2: #a3a3a3;
+  --text-3: #525252;
+  --crimson: #dc2626;
+  --crimson-h: #ef4444;
+  --crimson-dim: rgba(220, 38, 38, 0.1);
+  --crimson-glow: rgba(220, 38, 38, 0.3);
+  --green: #16a34a;
+  --green-dim: rgba(22, 163, 74, 0.1);
+  --yellow: #ca8a04;
+  --yellow-dim: rgba(202, 138, 4, 0.1);
+  --r: 12px;
+  --rs: 8px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+/* Focus */
+*:focus-visible {
+  outline: 2px solid var(--crimson);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: var(--crimson-dim);
+  color: var(--text);
+}
+
+/* Inputs */
+input, textarea, select {
+  font-family: 'Inter', sans-serif;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--rs);
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--crimson);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-3);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-in {
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+.pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Glow effects */
+.glow-r {
+  box-shadow: 0 0 12px var(--crimson-glow);
+}
+
+/* Card base */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px;
+}
+
+/* Recharts overrides */
+.recharts-text { fill: var(--text-3) !important; font-size: 11px !important; font-family: 'JetBrains Mono' !important; }
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line { stroke: var(--border) !important; }
+.recharts-tooltip-wrapper { z-index: 100; }
