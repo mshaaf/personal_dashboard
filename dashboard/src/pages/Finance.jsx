@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useToday } from '../hooks/useToday'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, TabBar, StatBox, Modal, Input, Select, Bar } from '../components/ui'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { format, startOfMonth, subMonths, parseISO } from 'date-fns'
-import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, parseISO } from 'date-fns'
+import { Plus, TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
 
 // Count how many times a monthly billing day falls within [fromISO, toISO]
 function billingOccurrences(billingDay, fromISO, toISO) {
@@ -39,10 +39,15 @@ export default function Finance() {
   // Form state
   const [form, setForm] = useState({})
 
+  // Which month the Income/Expenses/headline views show (navigable)
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()))
+
   // Derive dates once per calendar day (not every second the clock ticks)
-  const dayKey = format(now, 'yyyy-MM-dd')
-  const today = dayKey
-  const monthStart = useMemo(() => format(startOfMonth(now), 'yyyy-MM-dd'), [dayKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const today = format(now, 'yyyy-MM-dd')
+  const monthStart = format(viewMonth, 'yyyy-MM-dd')
+  const monthEnd = format(endOfMonth(viewMonth), 'yyyy-MM-dd')
+  const monthLabel = format(viewMonth, 'MMMM yyyy')
+  const isCurrentMonth = isSameMonth(viewMonth, now)
 
   useEffect(() => { init() }, [])
 
@@ -114,9 +119,13 @@ export default function Finance() {
     setChartData(weeks)
   }
 
+  // Records within the viewed month
+  const incomeInMonth = income.filter(r => r.check_date >= monthStart && r.check_date <= monthEnd)
+  const expensesInMonth = expenses.filter(r => r.expense_date >= monthStart && r.expense_date <= monthEnd)
+
   // Month totals
-  const monthIncome = income.filter(r => r.check_date >= monthStart).reduce((s, r) => s + +r.amount, 0)
-  const monthExp = expenses.filter(r => r.expense_date >= monthStart).reduce((s, r) => s + +r.amount, 0)
+  const monthIncome = incomeInMonth.reduce((s, r) => s + +r.amount, 0)
+  const monthExp = expensesInMonth.reduce((s, r) => s + +r.amount, 0)
   const monthSubs = subs.filter(s => s.active).reduce((s, r) => s + +r.amount, 0)
   const net = monthIncome - monthExp - monthSubs
   const inGreen = net >= 0
@@ -134,9 +143,10 @@ export default function Finance() {
     if (!form.amount) { setErr('Enter an amount.'); return }
     const id = await ensureUid()
     if (!id) { setErr('Still loading your account — please try again in a moment.'); return }
+    const date = form.date || today
     const { error } = await supabase.from('income_checks').insert({
       user_id: id,
-      check_date: form.date || today,
+      check_date: date,
       amount: +form.amount,
       hours: form.hours ? +form.hours : null,
       tips: form.tips ? +form.tips : null,
@@ -146,6 +156,7 @@ export default function Finance() {
     setErr(null)
     setModal(null)
     setForm({})
+    setViewMonth(startOfMonth(parseISO(date)))
     await loadAll(id)
   }
 
@@ -172,9 +183,10 @@ export default function Finance() {
     if (!form.amount || !form.note) { setErr('Enter an amount and description.'); return }
     const id = await ensureUid()
     if (!id) { setErr('Still loading your account — please try again in a moment.'); return }
+    const date = form.date || today
     const { error } = await supabase.from('expenses').insert({
       user_id: id,
-      expense_date: form.date || today,
+      expense_date: date,
       amount: +form.amount,
       category: form.category || 'other',
       note: form.note,
@@ -183,6 +195,7 @@ export default function Finance() {
     setErr(null)
     setModal(null)
     setForm({})
+    setViewMonth(startOfMonth(parseISO(date)))
     await loadAll(id)
   }
 
@@ -214,7 +227,16 @@ export default function Finance() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <Label className="mb-1">{format(now, 'MMMM yyyy')}</Label>
+          <div className="flex items-center gap-2 mb-1">
+            <button onClick={() => setViewMonth(m => subMonths(m, 1))} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors">
+              <ChevronLeft size={15} />
+            </button>
+            <Label className="mb-0 min-w-[110px] text-center">{monthLabel}</Label>
+            <button onClick={() => !isCurrentMonth && setViewMonth(m => addMonths(m, 1))} disabled={isCurrentMonth}
+              className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronRight size={15} />
+            </button>
+          </div>
           <div className={`font-mono text-[42px] font-black tracking-[-0.03em] leading-none ${inGreen ? 'text-success' : 'text-crimson'}`}>
             {inGreen ? '+' : '−'}${Math.abs(net).toFixed(2)}
           </div>
@@ -299,19 +321,19 @@ export default function Finance() {
       {tab === 'income' && (
         <div className="animate-in">
           <div className="flex gap-3 mb-4">
-            <StatBox label="This check" value={`$${income[0] ? (+income[0].amount).toFixed(0) : '—'}`} color="green" />
-            <StatBox label="4-wk avg" value={`$${income.slice(0, 4).length ? (income.slice(0, 4).reduce((s, r) => s + +r.amount, 0) / income.slice(0, 4).length).toFixed(0) : '—'}`} />
+            <StatBox label="Checks" value={`${incomeInMonth.length}`} color="green" />
+            <StatBox label="Avg check" value={`$${incomeInMonth.length ? (monthIncome / incomeInMonth.length).toFixed(0) : '—'}`} />
             <StatBox label="Month total" value={`$${monthIncome.toFixed(0)}`} />
           </div>
           <div className="flex justify-between items-center mb-3">
-            <Label className="mb-0">Recent Checks</Label>
+            <Label className="mb-0">{monthLabel} Checks</Label>
             <Btn size="sm" onClick={() => { setErr(null); setForm({ date: today }); setModal('income') }}>
               <Plus size={12} /> Log Check
             </Btn>
           </div>
           <Card>
-            {income.length === 0 && <div className="text-[13px] text-[var(--text-3)] py-4 text-center">No income logged yet</div>}
-            {income.map(r => (
+            {incomeInMonth.length === 0 && <div className="text-[13px] text-[var(--text-3)] py-4 text-center">No income logged for {monthLabel}</div>}
+            {incomeInMonth.map(r => (
               <div key={r.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
                 <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
                 <div className="flex-1">
@@ -366,23 +388,19 @@ export default function Finance() {
       {tab === 'expenses' && (
         <div className="animate-in">
           <div className="flex gap-3 mb-4">
-            <StatBox label="This week" value={`$${expenses.filter(e => {
-              const d = new Date(e.expense_date)
-              const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7)
-              return d >= weekAgo
-            }).reduce((s, r) => s + +r.amount, 0).toFixed(0)}`} color="red" />
             <StatBox label="Month total" value={`$${monthExp.toFixed(0)}`} color="red" />
-            <StatBox label="Transactions" value={`${expenses.filter(e => e.expense_date >= monthStart).length}`} />
+            <StatBox label="Transactions" value={`${expensesInMonth.length}`} />
+            <StatBox label="Avg/txn" value={`$${expensesInMonth.length ? (monthExp / expensesInMonth.length).toFixed(0) : '—'}`} />
           </div>
           <div className="flex justify-between items-center mb-3">
-            <Label className="mb-0">Transactions</Label>
+            <Label className="mb-0">{monthLabel} Transactions</Label>
             <Btn size="sm" onClick={() => { setErr(null); setForm({ date: today }); setModal('expense') }}>
               <Plus size={12} /> Add Expense
             </Btn>
           </div>
           <Card>
-            {expenses.length === 0 && <div className="text-[13px] text-[var(--text-3)] py-4 text-center">No expenses logged</div>}
-            {expenses.map(e => (
+            {expensesInMonth.length === 0 && <div className="text-[13px] text-[var(--text-3)] py-4 text-center">No expenses logged for {monthLabel}</div>}
+            {expensesInMonth.map(e => (
               <div key={e.id} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: CAT_COLORS[e.category] || '#a3a3a3' }} />
                 <div className="flex-1">
