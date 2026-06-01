@@ -34,6 +34,7 @@ export default function Gym() {
   const [form, setForm] = useState({})
   const [search, setSearch] = useState('')
   const [uid, setUid] = useState(null)
+  const [err, setErr] = useState(null)
   const today = format(now, 'yyyy-MM-dd')
 
   useEffect(() => { init() }, [])
@@ -101,6 +102,7 @@ export default function Gym() {
   }
 
   async function selectSplit(split) {
+    if (!uid) { setErr('Still loading your account — please try again in a moment.'); return }
     setSelectedSplit(split)
     if (session) {
       await supabase.from('workout_sessions').update({ split_day: split }).eq('id', session.id)
@@ -108,9 +110,11 @@ export default function Gym() {
       return
     }
     // Create new session
-    const { data } = await supabase.from('workout_sessions').insert({
+    const { data, error } = await supabase.from('workout_sessions').insert({
       user_id: uid, session_date: today, split_day: split,
     }).select().single()
+    if (error) { console.error('selectSplit failed:', error); setErr('Could not start workout: ' + error.message); return }
+    setErr(null)
     setSession(data)
 
     // Init sets structure from default exercises
@@ -134,17 +138,24 @@ export default function Gym() {
     const setData = sets[exerciseName]?.[setIdx]
     if (!setData?.weight || !setData?.reps) return
 
-    // Get exercise ID
-    let { data: ex } = await supabase.from('exercises').select('id').eq('name', exerciseName).maybeSingle()
+    // Get exercise ID (prefer global/own match, then create a custom one owned by the user)
+    let { data: ex } = await supabase.from('exercises').select('id')
+      .eq('name', exerciseName)
+      .or(`user_id.is.null,user_id.eq.${uid}`)
+      .limit(1).maybeSingle()
     if (!ex) {
-      const { data: newEx } = await supabase.from('exercises').insert({ name: exerciseName, source: 'custom' }).select().single()
+      const { data: newEx, error: exErr } = await supabase.from('exercises')
+        .insert({ name: exerciseName, source: 'custom', user_id: uid })
+        .select().single()
+      if (exErr) { console.error('create exercise failed:', exErr); setErr('Could not save exercise: ' + exErr.message); return }
       ex = newEx
     }
 
-    await supabase.from('workout_sets').upsert({
+    const { error } = await supabase.from('workout_sets').upsert({
       session_id: session.id, exercise_id: ex.id,
       set_number: setIdx + 1, weight: +setData.weight, reps: +setData.reps,
     })
+    if (error) { console.error('saveSet failed:', error); setErr('Could not save set: ' + error.message) }
   }
 
   async function addSet(exerciseName) {
@@ -164,7 +175,8 @@ export default function Gym() {
 
   async function saveCardio() {
     if (!form.cardio_type || !form.duration) return
-    await supabase.from('cardio_sessions').insert({
+    if (!uid) { setErr('Still loading your account — please try again in a moment.'); return }
+    const { error } = await supabase.from('cardio_sessions').insert({
       user_id: uid, session_date: form.date || today,
       cardio_type: form.cardio_type, duration_min: +form.duration,
       distance: form.distance ? +form.distance : null,
@@ -172,6 +184,8 @@ export default function Gym() {
       calories: form.calories ? +form.calories : null,
       notes: form.notes || null,
     })
+    if (error) { console.error('saveCardio failed:', error); setErr('Could not save cardio: ' + error.message); return }
+    setErr(null)
     setModal(null)
     setForm({})
   }
@@ -219,6 +233,11 @@ export default function Gym() {
 
   return (
     <div className="p-7 animate-in">
+      {err && (
+        <div className="mb-4 text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">
+          {err}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Gym</h1>

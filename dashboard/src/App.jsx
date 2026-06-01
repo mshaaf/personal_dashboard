@@ -1,5 +1,8 @@
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
 import { useToday } from './hooks/useToday'
+import { useUser } from './hooks/useUser'
+import { Spinner } from './components/ui'
+import Login from './pages/Login'
 import Home from './pages/Home'
 import Finance from './pages/Finance'
 import Gym from './pages/Gym'
@@ -39,6 +42,17 @@ const NAV = [
 
 export default function App() {
   const { dateShort } = useToday()
+  const { user, loading, signOut } = useUser()
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-bg">
+        <Spinner size={22} />
+      </div>
+    )
+  }
+
+  if (!user) return <Login />
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -93,7 +107,15 @@ export default function App() {
         {/* Bottom */}
         <div className="px-5 py-3.5 border-t border-border">
           <div className="font-mono text-[11px] text-[var(--text-3)]">{dateShort}</div>
-          <div className="text-[9px] text-[var(--text-3)] mt-0.5 opacity-60">Built for one.</div>
+          <div className="flex items-center justify-between mt-0.5">
+            <div className="text-[9px] text-[var(--text-3)] opacity-60">Built for one.</div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-1 text-[10px] text-[var(--text-3)] hover:text-[var(--text)] transition-colors"
+            >
+              <LogOut size={11} /> Sign out
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -117,7 +139,7 @@ export default function App() {
 }
 
 // ——— Icons ———
-import { LayoutDashboard, DollarSign, Dumbbell, Pill, Activity, BookOpen, Target, FolderOpen, Calendar } from 'lucide-react'
+import { LayoutDashboard, DollarSign, Dumbbell, Pill, Activity, BookOpen, Target, FolderOpen, Calendar, LogOut } from 'lucide-react'
 
 function GridIcon(p) { return <LayoutDashboard {...p} /> }
 function CalIcon(p) { return <Calendar {...p} /> }

@@ -15,6 +15,7 @@ export default function Finance() {
   const [chartData, setChartData] = useState([])
   const [modal, setModal] = useState(null) // 'income' | 'sub' | 'expense'
   const [uid, setUid] = useState(null)
+  const [err, setErr] = useState(null)
 
   // Form state
   const [form, setForm] = useState({})
@@ -73,9 +74,17 @@ export default function Finance() {
   const net = monthIncome - monthExp - monthSubs
   const inGreen = net >= 0
 
+  function guard() {
+    if (!uid) {
+      setErr('Still loading your account — please try again in a moment.')
+      return false
+    }
+    return true
+  }
+
   async function saveIncome() {
-    if (!form.amount) return
-    await supabase.from('income_checks').insert({
+    if (!form.amount || !guard()) return
+    const { error } = await supabase.from('income_checks').insert({
       user_id: uid,
       check_date: form.date || today,
       amount: +form.amount,
@@ -83,14 +92,16 @@ export default function Finance() {
       tips: form.tips ? +form.tips : null,
       notes: form.notes || null,
     })
+    if (error) { console.error('saveIncome failed:', error); setErr('Could not save check: ' + error.message); return }
+    setErr(null)
     setModal(null)
     setForm({})
     await loadAll(uid)
   }
 
   async function saveSub() {
-    if (!form.name || !form.amount) return
-    await supabase.from('subscriptions').insert({
+    if (!form.name || !form.amount || !guard()) return
+    const { error } = await supabase.from('subscriptions').insert({
       user_id: uid,
       name: form.name,
       amount: +form.amount,
@@ -98,32 +109,38 @@ export default function Finance() {
       category: form.category || 'other',
       active: true,
     })
+    if (error) { console.error('saveSub failed:', error); setErr('Could not save subscription: ' + error.message); return }
+    setErr(null)
     setModal(null)
     setForm({})
     await loadAll(uid)
   }
 
   async function saveExpense() {
-    if (!form.amount || !form.note) return
-    await supabase.from('expenses').insert({
+    if (!form.amount || !form.note || !guard()) return
+    const { error } = await supabase.from('expenses').insert({
       user_id: uid,
       expense_date: form.date || today,
       amount: +form.amount,
       category: form.category || 'other',
       note: form.note,
     })
+    if (error) { console.error('saveExpense failed:', error); setErr('Could not save expense: ' + error.message); return }
+    setErr(null)
     setModal(null)
     setForm({})
     await loadAll(uid)
   }
 
   async function toggleSub(id, active) {
-    await supabase.from('subscriptions').update({ active: !active }).eq('id', id)
+    const { error } = await supabase.from('subscriptions').update({ active: !active }).eq('id', id)
+    if (error) { console.error('toggleSub failed:', error); setErr('Could not update subscription: ' + error.message); return }
     await loadAll(uid)
   }
 
   async function deleteRecord(table, id) {
-    await supabase.from(table).delete().eq('id', id)
+    const { error } = await supabase.from(table).delete().eq('id', id)
+    if (error) { console.error('delete failed:', error); setErr('Could not delete: ' + error.message); return }
     await loadAll(uid)
   }
 
@@ -135,6 +152,11 @@ export default function Finance() {
 
   return (
     <div className="p-7 animate-in">
+      {err && (
+        <div className="mb-4 text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">
+          {err}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

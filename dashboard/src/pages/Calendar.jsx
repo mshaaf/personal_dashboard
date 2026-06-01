@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useToday } from '../hooks/useToday'
-import { loadGapi, initTokenClient, requestToken, revokeToken, isSignedIn, fetchMonth, fetchUpcoming, formatEventTime } from '../lib/googleCalendar'
+import { loadGapi, initTokenClient, requestToken, requestTokenSilent, restoreToken, hasExpiredToken, revokeToken, isSignedIn, fetchMonth, fetchUpcoming, formatEventTime } from '../lib/googleCalendar'
 import { Card, Label, Btn, Empty } from '../components/ui'
 import { Calendar, ChevronLeft, ChevronRight, LogIn, LogOut } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns'
@@ -33,7 +33,16 @@ export default function CalendarPage() {
             loadEvents()
           })
           setGapiReady(true)
-          setSignedIn(isSignedIn())
+          // Restore a saved session so a refresh doesn't force re-sign-in.
+          if (restoreToken()) {
+            setSignedIn(true)
+            loadEvents()
+          } else if (hasExpiredToken()) {
+            // Previously connected but token expired — refresh without a popup.
+            requestTokenSilent()
+          } else {
+            setSignedIn(isSignedIn())
+          }
         })
       }
     }, 300)
