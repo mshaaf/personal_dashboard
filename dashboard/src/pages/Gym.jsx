@@ -53,10 +53,16 @@ export default function Gym() {
       await loadSets(todaySession.id)
     }
 
-    // Load exercise DB
-    const { data: exDB } = await supabase.from('exercises').select('*')
-      .or(`user_id.is.null,user_id.eq.${user.id}`).order('name')
-    setExercises(exDB || [])
+    // Load exercise DB — two queries to avoid PostgREST .or() + null RLS edge case
+    const [globalRes, userRes] = await Promise.all([
+      supabase.from('exercises').select('*').is('user_id', null).order('name'),
+      supabase.from('exercises').select('*').eq('user_id', user.id).order('name'),
+    ])
+    const merged = [
+      ...(globalRes.data || []),
+      ...(userRes.data || []),
+    ].sort((a, b) => a.name.localeCompare(b.name))
+    setExercises(merged)
 
     // Load recent history for all exercises
     await loadHistory(user.id)

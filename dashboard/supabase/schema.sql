@@ -317,10 +317,21 @@ create policy "user can manage own income" on income_checks for all using (is_ow
 create policy "user can manage own subs" on subscriptions for all using (is_own_user_id(user_id));
 create policy "user can manage own expenses" on expenses for all using (is_own_user_id(user_id));
 
--- Exercises: own or global (user_id is null)
-create policy "user can read global exercises" on exercises for select using (user_id is null or is_own_user_id(user_id));
-create policy "user can manage own exercises" on exercises for insert with check (is_own_user_id(user_id));
-create policy "user can update own exercises" on exercises for update using (is_own_user_id(user_id));
+-- Exercises: global rows (user_id IS NULL) readable by any authenticated user
+create policy "authenticated can read global exercises"
+  on exercises for select
+  using (user_id is null and auth.role() = 'authenticated');
+
+-- User's own custom exercises
+create policy "user can read own exercises"
+  on exercises for select
+  using (is_own_user_id(user_id));
+create policy "user can insert own exercises"
+  on exercises for insert
+  with check (is_own_user_id(user_id));
+create policy "user can update own exercises"
+  on exercises for update
+  using (is_own_user_id(user_id));
 
 create policy "user can manage own sessions" on workout_sessions for all using (is_own_user_id(user_id));
 create policy "user can manage own sets" on workout_sets for all using (
