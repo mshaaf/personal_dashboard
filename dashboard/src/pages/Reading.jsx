@@ -13,6 +13,7 @@ export default function Reading() {
   const [form, setForm] = useState({})
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [searchErr, setSearchErr] = useState(null)
   const [uid, setUid] = useState(null)
   const today = format(now, 'yyyy-MM-dd')
 
@@ -33,19 +34,31 @@ export default function Reading() {
   async function searchBooks(query) {
     if (!query.trim()) return
     setSearching(true)
+    setSearchErr(null)
+    setSearchResults([])
     try {
-      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5&fields=items(id,volumeInfo(title,authors,pageCount,imageLinks,industryIdentifiers))`)
+      const key = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5&fields=items(id,volumeInfo(title,authors,pageCount,imageLinks,industryIdentifiers))${key ? `&key=${key}` : ''}`
+      const res = await fetch(url)
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error?.message || `Google Books error ${res.status}`)
+      }
       const json = await res.json()
-      setSearchResults(json.items || [])
+      const items = json.items || []
+      setSearchResults(items)
+      if (items.length === 0) setSearchErr('No matches found. Try a different title or add it manually below.')
     } catch (e) {
-      console.error(e)
+      console.error('book search failed:', e)
+      setSearchErr('Search failed: ' + e.message + '. You can still add the book manually below.')
     }
     setSearching(false)
   }
 
   async function addBook(bookData) {
+    if (!uid) { setSearchErr('Still loading your account — please try again in a moment.'); return }
     const info = bookData?.volumeInfo || {}
-    await supabase.from('books').insert({
+    const { error } = await supabase.from('books').insert({
       user_id: uid,
       title: info.title || form.title || 'Unknown',
       author: info.authors?.[0] || form.author || null,
@@ -57,18 +70,21 @@ export default function Reading() {
       status: 'reading',
       started_at: today,
     })
-    setModal(null); setForm({}); setSearchResults([])
+    if (error) { console.error('addBook failed:', error); setSearchErr('Could not save book: ' + error.message); return }
+    setModal(null); setForm({}); setSearchResults([]); setSearchErr(null)
     await init()
   }
 
   async function addManualBook() {
     if (!form.title) return
-    await supabase.from('books').insert({
+    if (!uid) { setSearchErr('Still loading your account — please try again in a moment.'); return }
+    const { error } = await supabase.from('books').insert({
       user_id: uid, title: form.title, author: form.author || null,
       total_pages: form.pages ? +form.pages : null,
       current_page: 0, status: 'reading', started_at: today,
     })
-    setModal(null); setForm({})
+    if (error) { console.error('addManualBook failed:', error); setSearchErr('Could not save book: ' + error.message); return }
+    setModal(null); setForm({}); setSearchErr(null)
     await init()
   }
 
@@ -77,7 +93,7 @@ export default function Reading() {
     const book = books.find(b => b.id === form.book_id)
     if (!book) return
     const newPage = Math.min(book.total_pages || 99999, book.current_page + +form.pages)
-    await Promise.all([
+    const [sessRes, bookRes] = await Promise.all([
       supabase.from('reading_sessions').insert({
         user_id: uid, book_id: form.book_id, session_date: today,
         pages_read: +form.pages, minutes_read: form.minutes ? +form.minutes : null,
@@ -88,6 +104,11 @@ export default function Reading() {
         finished_at: newPage >= (book.total_pages || 99999) ? today : null,
       }).eq('id', form.book_id),
     ])
+    if (sessRes.error || bookRes.error) {
+      console.error('logReading failed:', sessRes.error || bookRes.error)
+      setSearchErr('Could not log session: ' + (sessRes.error || bookRes.error).message)
+      return
+    }
     setModal(null); setForm({})
     await init()
   }
@@ -196,7 +217,7 @@ export default function Reading() {
       )}
 
       {/* Search modal */}
-      <Modal open={modal === 'search'} onClose={() => { setModal(null); setSearchResults([]) }} title="Add Book">
+      <Modal open={modal === 'search'} onClose={() => { setModal(null); setSearchResults([]); setSearchErr(null) }} title="Add Book">
         <div className="flex gap-2 mb-4">
           <input
             placeholder="Search by title..."
@@ -209,6 +230,12 @@ export default function Reading() {
             {searching ? '...' : 'Search'}
           </Btn>
         </div>
+
+        {searchErr && (
+          <div className="mb-3 text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">
+            {searchErr}
+          </div>
+        )}
 
         {searchResults.map(item => {
           const info = item.volumeInfo

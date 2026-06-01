@@ -54,21 +54,49 @@ export function initTokenClient(callback) {
   return tokenClient
 }
 
-// Request auth token
-export function requestToken() {
-  if (!tokenClient) return
-  
-  // NEW: Look for an unexpired saved token in localStorage
+// Restore an unexpired token from localStorage into the GAPI client.
+// Returns true if a valid token was restored. Call this on page load so a
+// refresh doesn't force the user to click "Connect" again.
+export function restoreToken() {
   const savedToken = localStorage.getItem('gapi_token')
   const expiresAt = localStorage.getItem('gapi_token_expires_at')
   const now = new Date().getTime()
 
-  // NEW: If found and valid, bypass login and restore session silently
   if (savedToken && expiresAt && now < parseInt(expiresAt)) {
-    const parsedToken = JSON.parse(savedToken)
-    window.gapi.client.setToken(parsedToken)
-    onTokenCallback?.(parsedToken)
-    return 
+    try {
+      const parsedToken = JSON.parse(savedToken)
+      window.gapi.client.setToken(parsedToken)
+      return true
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
+// True if we have a saved token that previously consented but is now expired.
+export function hasExpiredToken() {
+  const savedToken = localStorage.getItem('gapi_token')
+  const expiresAt = localStorage.getItem('gapi_token_expires_at')
+  if (!savedToken || !expiresAt) return false
+  return new Date().getTime() >= parseInt(expiresAt)
+}
+
+// Silently request a fresh token without the consent screen.
+// Works when the Google session is active and the user previously consented.
+export function requestTokenSilent() {
+  if (!tokenClient) return
+  tokenClient.requestAccessToken({ prompt: '' })
+}
+
+// Request auth token (interactive — used by the Connect button)
+export function requestToken() {
+  if (!tokenClient) return
+
+  // If a valid saved token exists, restore it silently instead of prompting.
+  if (restoreToken()) {
+    onTokenCallback?.(window.gapi.client.getToken())
+    return
   }
 
   if (window.gapi.client.getToken() === null) {
@@ -96,7 +124,8 @@ export function isSignedIn() {
   return !!window.gapi?.client?.getToken()
 }
 
-// Fetch events for a date range
+// Fetch events for a date range. On a 401 (expired token) it triggers a
+// silent re-auth; the onTokenCallback then re-runs the fetch.
 export async function fetchEvents(timeMin, timeMax) {
   try {
     const resp = await window.gapi.client.calendar.events.list({
@@ -110,7 +139,12 @@ export async function fetchEvents(timeMin, timeMax) {
     return resp.result.items || []
   } catch (err) {
     console.error('Calendar fetch error:', err)
-    return []
+    if (err?.status === 401) {
+      // Token expired/invalid — clear it and try a silent refresh.
+      window.gapi.client.setToken(null)
+      requestTokenSilent()
+    }
+    throw err
   }
 }
 

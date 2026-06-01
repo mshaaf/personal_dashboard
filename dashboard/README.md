@@ -26,8 +26,13 @@ npm install
 1. Create a project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** → run `supabase/schema.sql` (creates all tables + RLS)
 3. Run `supabase/seed.sql` (adds your PPL exercises as global entries)
-4. Go to **Authentication → Providers** → enable Email (magic link works great for single-user)
-5. Copy your **Project URL** and **anon key** from Settings → API
+4. Run `supabase/exercises_seed.sql` to import the full ~870-exercise free-exercise-db
+   (regenerate any time with `node scripts/gen-exercises-seed.mjs`)
+5. Go to **Authentication → Providers** → enable Email (magic link works great for single-user)
+6. Under **Authentication → URL Configuration**, set the **Site URL** and add
+   redirect URLs for `http://localhost:5173` and your Vercel domain so magic
+   links return to the app
+7. Copy your **Project URL** and **anon key** from Settings → API
 
 ### 3. Configure environment variables
 ```bash
@@ -51,9 +56,10 @@ npm run dev
 ```
 
 ### 6. First login
-- Go to your Supabase project → **Authentication → Users → Invite user**
-- Use your email address — you'll get a magic link
-- Or enable **Magic Link** in Auth settings and add a login page
+- The app shows a built-in **magic-link login page** when you're signed out
+- Enter your email → open the magic link on the same device → you're in
+- The session is persisted in `localStorage`, so refreshing keeps you signed in
+- (Optional) pre-create your user via **Authentication → Users → Invite user**
 
 ### 7. Deploy to Vercel
 ```bash
@@ -65,6 +71,7 @@ vercel --prod
 
 # Add env vars in Vercel dashboard:
 # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_GOOGLE_CLIENT_ID
+# (optional) VITE_GOOGLE_BOOKS_API_KEY
 ```
 
 ---

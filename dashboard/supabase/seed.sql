@@ -37,6 +37,8 @@ insert into exercises (name, category, equipment, primary_muscles, secondary_mus
 on conflict do nothing;
 
 -- ============================================
--- NOTE: free-exercise-db (~870 exercises)
--- Import script: node scripts/seed-exercises.js
+-- NOTE: full free-exercise-db (~870 exercises)
+-- Run supabase/exercises_seed.sql in the Supabase SQL editor to import the
+-- complete database. Regenerate it any time with:
+--   node scripts/gen-exercises-seed.mjs
 -- ============================================
