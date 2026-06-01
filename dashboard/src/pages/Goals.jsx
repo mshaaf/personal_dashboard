@@ -13,6 +13,7 @@ export default function Goals() {
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
   const [uid, setUid] = useState(null)
+  const [err, setErr] = useState(null)
   const today = format(now, 'yyyy-MM-dd')
 
   useEffect(() => { init() }, [today])
@@ -34,14 +35,25 @@ export default function Goals() {
   }
 
   async function createSprint() {
-    if (!form.name || !form.start_date || !form.end_date) return
-    await supabase.from('sprints').update({ active: false }).eq('user_id', uid)
-    const { data } = await supabase.from('sprints').insert({
-      user_id: uid, name: form.name, start_date: form.start_date, end_date: form.end_date, active: true,
+    if (!form.name) { setErr('Give your sprint a name.'); return }
+    // Resolve the user id directly so a not-yet-loaded `uid` state can't silently block the insert
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErr('Still loading your account — please try again in a moment.'); return }
+    // Dates default to today → +12 weeks if the user didn't touch the (pre-filled) inputs
+    const start_date = form.start_date || today
+    const end = new Date(now); end.setDate(end.getDate() + 83)
+    const end_date = form.end_date || format(end, 'yyyy-MM-dd')
+
+    await supabase.from('sprints').update({ active: false }).eq('user_id', user.id)
+    const { data, error } = await supabase.from('sprints').insert({
+      user_id: user.id, name: form.name, start_date, end_date, active: true,
     }).select().single()
+    if (error) { console.error('createSprint failed:', error); setErr('Could not start sprint: ' + error.message); return }
+    setErr(null)
+    setUid(user.id)
     setSprint(data)
     setModal(null); setForm({})
-    await loadProjects(uid, data.id)
+    await loadProjects(user.id, data.id)
   }
 
   async function addProject() {
@@ -119,10 +131,10 @@ export default function Goals() {
             <h1 className="text-[22px] font-black tracking-[-0.03em]">12 Week Year</h1>
             <p className="text-[13px] text-[var(--text-2)] mt-0.5">Set up your sprint to begin</p>
           </div>
-          <Btn onClick={() => setModal('sprint')}><Plus size={13} /> New Sprint</Btn>
+          <Btn onClick={() => { setErr(null); setModal('sprint') }}><Plus size={13} /> New Sprint</Btn>
         </div>
-        <Card><Empty icon={Target} title="No active sprint" sub="A sprint is a 12-week focused period with specific goals" action={<Btn onClick={() => setModal('sprint')}>Start Sprint</Btn>} /></Card>
-        <SprintModal open={modal === 'sprint'} form={form} setForm={setForm} onClose={() => setModal(null)} onSave={createSprint} />
+        <Card><Empty icon={Target} title="No active sprint" sub="A sprint is a 12-week focused period with specific goals" action={<Btn onClick={() => { setErr(null); setModal('sprint') }}>Start Sprint</Btn>} /></Card>
+        <SprintModal open={modal === 'sprint'} form={form} setForm={setForm} err={err} onClose={() => setModal(null)} onSave={createSprint} />
       </div>
     )
   }
@@ -135,7 +147,7 @@ export default function Goals() {
           <p className="text-[13px] text-[var(--text-2)] mt-0.5">Sprint · Week {sprintWeek} of 12</p>
         </div>
         <div className="flex gap-2">
-          <Btn variant="ghost" size="sm" onClick={() => setModal('sprint')}>New Sprint</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => { setErr(null); setForm({}); setModal('sprint') }}>New Sprint</Btn>
           <Btn size="sm" onClick={() => { setForm({}); setModal('project') }}><Plus size={12} /> Add Goal</Btn>
         </div>
       </div>
@@ -302,7 +314,7 @@ export default function Goals() {
       })}
 
       {/* Modals */}
-      <SprintModal open={modal === 'sprint'} form={form} setForm={setForm} onClose={() => setModal(null)} onSave={createSprint} />
+      <SprintModal open={modal === 'sprint'} form={form} setForm={setForm} err={err} onClose={() => setModal(null)} onSave={createSprint} />
 
       <Modal open={modal === 'project'} onClose={() => setModal(null)} title="Add Goal">
         <div className="flex flex-col gap-3">
@@ -315,7 +327,7 @@ export default function Goals() {
   )
 }
 
-function SprintModal({ open, form, setForm, onClose, onSave }) {
+function SprintModal({ open, form, setForm, err, onClose, onSave }) {
   const now = new Date()
   const end = new Date(now); end.setDate(end.getDate() + 83)
   return (
@@ -324,6 +336,7 @@ function SprintModal({ open, form, setForm, onClose, onSave }) {
         <Input label="Sprint name" placeholder="Spring Sprint 2026" value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
         <Input label="Start date" type="date" value={form.start_date || format(now, 'yyyy-MM-dd')} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
         <Input label="End date" type="date" value={form.end_date || format(end, 'yyyy-MM-dd')} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} />
+        {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
         <Btn size="full" onClick={onSave}>Start Sprint</Btn>
       </div>
     </Modal>

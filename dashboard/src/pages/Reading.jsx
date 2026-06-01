@@ -37,8 +37,9 @@ export default function Reading() {
     setSearchErr(null)
     setSearchResults([])
     try {
-      const key = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5&fields=items(id,volumeInfo(title,authors,pageCount,imageLinks,industryIdentifiers))${key ? `&key=${key}` : ''}`
+      // Keyless Google Books query — plenty for a single user and avoids the
+      // per-project daily quota that a key would impose.
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5&fields=items(id,volumeInfo(title,authors,pageCount,imageLinks,industryIdentifiers))`
       const res = await fetch(url)
       if (!res.ok) {
         const body = await res.json().catch(() => null)

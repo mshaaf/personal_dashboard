@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { DayRing } from '../components/DayRing'
 import { Card, Label, Bar, Pill, Checkbox, StreakBadge } from '../components/ui'
 import { Dumbbell, Pill as PillIcon, BookOpen, Target, Activity, TrendingDown, TrendingUp, Plus } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, startOfWeek, subWeeks } from 'date-fns'
 
 export default function Home() {
   const { date, now } = useToday()
@@ -19,6 +19,7 @@ export default function Home() {
   const [sprint, setSprint] = useState(null)
   const [book, setBook] = useState(null)
   const [gymSession, setGymSession] = useState(null)
+  const [volume, setVolume] = useState({ thisWeek: 0, lastWeek: 0 })
   const [newTask, setNewTask] = useState('')
 
   useEffect(() => { loadAll() }, [today])
@@ -84,6 +85,22 @@ export default function Home() {
     const { data: gymData } = await supabase.from('workout_sessions')
       .select('*').eq('user_id', uid).eq('session_date', today).maybeSingle()
     setGymSession(gymData)
+
+    // Weekly training volume (sum of weight×reps) — this week vs last week
+    const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
+    const lastWeekStart = subWeeks(thisWeekStart, 1)
+    const thisWeekStartStr = format(thisWeekStart, 'yyyy-MM-dd')
+    const { data: volData } = await supabase.from('workout_sets')
+      .select('weight,reps,workout_sessions!inner(session_date,user_id)')
+      .eq('workout_sessions.user_id', uid)
+      .gte('workout_sessions.session_date', format(lastWeekStart, 'yyyy-MM-dd'))
+    let thisWeekVol = 0, lastWeekVol = 0
+    ;(volData || []).forEach(s => {
+      const vol = (+s.weight || 0) * (+s.reps || 0)
+      if (s.workout_sessions?.session_date >= thisWeekStartStr) thisWeekVol += vol
+      else lastWeekVol += vol
+    })
+    setVolume({ thisWeek: thisWeekVol, lastWeek: lastWeekVol })
   }
 
   async function toggleTask(task) {
@@ -203,6 +220,31 @@ export default function Home() {
           <Label>Gym</Label>
           <div className="font-mono text-[20px] font-bold">{gymSession?.split_day?.toUpperCase() ?? '—'}</div>
           <div className="text-[11px] text-[var(--text-2)] mt-0.5">{gymSession ? 'Logged today' : 'Tap to log session'}</div>
+        </Card>
+
+        {/* Weekly Training Volume */}
+        <Card onClick={() => nav('/gym')} className="cursor-pointer hover:border-[rgba(220,38,38,0.4)] transition-colors">
+          <div className="w-9 h-9 bg-[var(--crimson-dim)] rounded-[9px] flex items-center justify-center mb-3">
+            <TrendingUp size={17} className="text-crimson" />
+          </div>
+          <Label>Weight Pushed · This Week</Label>
+          <div className="font-mono text-[20px] font-bold">
+            {Math.round(volume.thisWeek).toLocaleString()} <span className="text-[12px] font-normal text-[var(--text-2)]">lb</span>
+          </div>
+          {(() => {
+            const { thisWeek, lastWeek } = volume
+            if (lastWeek <= 0) {
+              return <div className="text-[11px] text-[var(--text-2)] mt-0.5">{thisWeek > 0 ? 'First week of volume' : 'No sets logged yet'}</div>
+            }
+            const pct = ((thisWeek - lastWeek) / lastWeek) * 100
+            const up = pct >= 0
+            return (
+              <div className={`flex items-center gap-1 text-[11px] mt-0.5 ${up ? 'text-success' : 'text-crimson'}`}>
+                {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {up ? '+' : ''}{pct.toFixed(0)}% vs last week
+              </div>
+            )
+          })()}
         </Card>
 
         {/* Supplements */}

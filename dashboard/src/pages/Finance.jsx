@@ -1,35 +1,82 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useToday } from '../hooks/useToday'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, TabBar, StatBox, Modal, Input, Select, Bar } from '../components/ui'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { format, startOfMonth, subMonths, parseISO } from 'date-fns'
-import { Plus, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+
+// Count how many times a monthly billing day falls within [fromISO, toISO]
+function billingOccurrences(billingDay, fromISO, toISO) {
+  if (!billingDay || !fromISO || !toISO) return 0
+  const from = parseISO(fromISO)
+  const to = parseISO(toISO)
+  if (to < from) return 0
+  let count = 0
+  const cursor = new Date(from.getFullYear(), from.getMonth(), 1)
+  while (cursor <= to) {
+    const y = cursor.getFullYear(), m = cursor.getMonth()
+    const lastDay = new Date(y, m + 1, 0).getDate()
+    const charge = new Date(y, m, Math.min(billingDay, lastDay))
+    if (charge >= from && charge <= to) count++
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+  return count
+}
 
 export default function Finance() {
   const { now } = useToday()
-  const [tab, setTab] = useState('income')
+  const [tab, setTab] = useState('balance')
   const [income, setIncome] = useState([])
   const [subs, setSubs] = useState([])
   const [expenses, setExpenses] = useState([])
   const [chartData, setChartData] = useState([])
-  const [modal, setModal] = useState(null) // 'income' | 'sub' | 'expense'
+  const [modal, setModal] = useState(null) // 'income' | 'sub' | 'expense' | 'balance'
   const [uid, setUid] = useState(null)
   const [err, setErr] = useState(null)
+  const [bal, setBal] = useState({ starting_balance: null, balance_as_of: null })
 
   // Form state
   const [form, setForm] = useState({})
 
-  const today = format(now, 'yyyy-MM-dd')
-  const monthStart = format(startOfMonth(now), 'yyyy-MM-dd')
+  // Derive dates once per calendar day (not every second the clock ticks)
+  const dayKey = format(now, 'yyyy-MM-dd')
+  const today = dayKey
+  const monthStart = useMemo(() => format(startOfMonth(now), 'yyyy-MM-dd'), [dayKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { init() }, [])
+
+  // Resolve the user id reliably even if `uid` state hasn't populated yet
+  async function ensureUid() {
+    if (uid) return uid
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) setUid(user.id)
+    return user?.id || null
+  }
 
   async function init() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     setUid(user.id)
+    const { data: profile } = await supabase.from('profiles').select('settings').eq('id', user.id).maybeSingle()
+    const s = profile?.settings || {}
+    if (s.starting_balance != null) setBal({ starting_balance: s.starting_balance, balance_as_of: s.balance_as_of || null })
     await loadAll(user.id)
+  }
+
+  async function saveBalance() {
+    if (form.starting_balance === undefined || form.starting_balance === '') { setErr('Enter your current balance.'); return }
+    const id = await ensureUid()
+    if (!id) { setErr('Still loading your account — please try again in a moment.'); return }
+    const next = { starting_balance: +form.starting_balance, balance_as_of: form.balance_as_of || today }
+    const { data: profile } = await supabase.from('profiles').select('settings').eq('id', id).maybeSingle()
+    const { error } = await supabase.from('profiles')
+      .update({ settings: { ...(profile?.settings || {}), ...next } }).eq('id', id)
+    if (error) { console.error('saveBalance failed:', error); setErr('Could not save balance: ' + error.message); return }
+    setErr(null)
+    setBal(next)
+    setModal(null)
+    setForm({})
   }
 
   async function loadAll(id) {
@@ -74,18 +121,21 @@ export default function Finance() {
   const net = monthIncome - monthExp - monthSubs
   const inGreen = net >= 0
 
-  function guard() {
-    if (!uid) {
-      setErr('Still loading your account — please try again in a moment.')
-      return false
-    }
-    return true
-  }
+  // Live cash balance: starting balance + income − expenses − subscription charges
+  // since the as-of date (each active sub deducted per billing-day occurrence)
+  const hasBalance = bal.starting_balance != null
+  const asOf = bal.balance_as_of || null
+  const sinceIncome = income.filter(r => !asOf || r.check_date >= asOf).reduce((s, r) => s + +r.amount, 0)
+  const sinceExp = expenses.filter(r => !asOf || r.expense_date >= asOf).reduce((s, r) => s + +r.amount, 0)
+  const sinceSubs = asOf ? subs.filter(s => s.active).reduce((s, r) => s + +r.amount * billingOccurrences(r.billing_day, asOf, today), 0) : 0
+  const currentBalance = (+bal.starting_balance || 0) + sinceIncome - sinceExp - sinceSubs
 
   async function saveIncome() {
-    if (!form.amount || !guard()) return
+    if (!form.amount) { setErr('Enter an amount.'); return }
+    const id = await ensureUid()
+    if (!id) { setErr('Still loading your account — please try again in a moment.'); return }
     const { error } = await supabase.from('income_checks').insert({
-      user_id: uid,
+      user_id: id,
       check_date: form.date || today,
       amount: +form.amount,
       hours: form.hours ? +form.hours : null,
@@ -96,13 +146,15 @@ export default function Finance() {
     setErr(null)
     setModal(null)
     setForm({})
-    await loadAll(uid)
+    await loadAll(id)
   }
 
   async function saveSub() {
-    if (!form.name || !form.amount || !guard()) return
+    if (!form.name || !form.amount) { setErr('Enter a name and amount.'); return }
+    const id = await ensureUid()
+    if (!id) { setErr('Still loading your account — please try again in a moment.'); return }
     const { error } = await supabase.from('subscriptions').insert({
-      user_id: uid,
+      user_id: id,
       name: form.name,
       amount: +form.amount,
       billing_day: form.billing_day ? +form.billing_day : null,
@@ -113,13 +165,15 @@ export default function Finance() {
     setErr(null)
     setModal(null)
     setForm({})
-    await loadAll(uid)
+    await loadAll(id)
   }
 
   async function saveExpense() {
-    if (!form.amount || !form.note || !guard()) return
+    if (!form.amount || !form.note) { setErr('Enter an amount and description.'); return }
+    const id = await ensureUid()
+    if (!id) { setErr('Still loading your account — please try again in a moment.'); return }
     const { error } = await supabase.from('expenses').insert({
-      user_id: uid,
+      user_id: id,
       expense_date: form.date || today,
       amount: +form.amount,
       category: form.category || 'other',
@@ -129,7 +183,7 @@ export default function Finance() {
     setErr(null)
     setModal(null)
     setForm({})
-    await loadAll(uid)
+    await loadAll(id)
   }
 
   async function toggleSub(id, active) {
@@ -201,10 +255,45 @@ export default function Finance() {
 
       {/* Tabs */}
       <TabBar
-        tabs={[{ key: 'income', label: 'Income' }, { key: 'subs', label: 'Subscriptions' }, { key: 'expenses', label: 'Expenses' }]}
+        tabs={[{ key: 'balance', label: 'Balance' }, { key: 'income', label: 'Income' }, { key: 'subs', label: 'Subscriptions' }, { key: 'expenses', label: 'Expenses' }]}
         active={tab}
         onChange={setTab}
       />
+
+      {/* Balance tab */}
+      {tab === 'balance' && (
+        <div className="animate-in">
+          <Card className="mb-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <Label className="mb-1">Current Balance</Label>
+                {hasBalance ? (
+                  <div className={`font-mono text-[36px] font-black tracking-[-0.03em] leading-none ${currentBalance >= 0 ? 'text-success' : 'text-crimson'}`}>
+                    ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                ) : (
+                  <div className="text-[13px] text-[var(--text-2)]">Set your current cash to start tracking your live balance.</div>
+                )}
+                {hasBalance && asOf && <div className="text-[11px] text-[var(--text-3)] mt-1.5">Since {asOf}</div>}
+              </div>
+              <Btn size="sm" variant={hasBalance ? 'ghost' : 'primary'} onClick={() => { setErr(null); setForm({ starting_balance: bal.starting_balance ?? '', balance_as_of: bal.balance_as_of || today }); setModal('balance') }}>
+                <Wallet size={12} /> {hasBalance ? 'Update' : 'Set Balance'}
+              </Btn>
+            </div>
+          </Card>
+
+          {hasBalance && (
+            <div className="flex gap-3 mb-4">
+              <StatBox label="Income in" value={`+$${sinceIncome.toFixed(0)}`} color="green" />
+              <StatBox label="Expenses out" value={`−$${sinceExp.toFixed(0)}`} color="red" />
+              <StatBox label="Subs out" value={`−$${sinceSubs.toFixed(0)}`} color="red" />
+            </div>
+          )}
+          <div className="text-[11px] text-[var(--text-3)]">
+            Starting balance ${(+bal.starting_balance || 0).toFixed(2)} + income − expenses − subscription charges since {asOf || 'the start date'}.
+          </div>
+        </div>
+      )}
 
       {/* Income tab */}
       {tab === 'income' && (
@@ -216,7 +305,7 @@ export default function Finance() {
           </div>
           <div className="flex justify-between items-center mb-3">
             <Label className="mb-0">Recent Checks</Label>
-            <Btn size="sm" onClick={() => { setForm({ date: today }); setModal('income') }}>
+            <Btn size="sm" onClick={() => { setErr(null); setForm({ date: today }); setModal('income') }}>
               <Plus size={12} /> Log Check
             </Btn>
           </div>
@@ -249,7 +338,7 @@ export default function Finance() {
           </div>
           <div className="flex justify-between items-center mb-3">
             <Label className="mb-0">Subscriptions</Label>
-            <Btn size="sm" onClick={() => { setForm({}); setModal('sub') }}>
+            <Btn size="sm" onClick={() => { setErr(null); setForm({}); setModal('sub') }}>
               <Plus size={12} /> Add Sub
             </Btn>
           </div>
@@ -287,7 +376,7 @@ export default function Finance() {
           </div>
           <div className="flex justify-between items-center mb-3">
             <Label className="mb-0">Transactions</Label>
-            <Btn size="sm" onClick={() => { setForm({ date: today }); setModal('expense') }}>
+            <Btn size="sm" onClick={() => { setErr(null); setForm({ date: today }); setModal('expense') }}>
               <Plus size={12} /> Add Expense
             </Btn>
           </div>
@@ -309,6 +398,16 @@ export default function Finance() {
       )}
 
       {/* Modals */}
+      <Modal open={modal === 'balance'} onClose={() => setModal(null)} title="Set Current Balance">
+        <div className="flex flex-col gap-3">
+          <Input label="Current cash ($)" type="number" placeholder="2500.00" value={form.starting_balance ?? ''} onChange={e => setForm(p => ({ ...p, starting_balance: e.target.value }))} />
+          <Input label="As of date" type="date" value={form.balance_as_of || today} onChange={e => setForm(p => ({ ...p, balance_as_of: e.target.value }))} />
+          <div className="text-[11px] text-[var(--text-3)]">Income and expenses logged on or after this date adjust your balance; active subscriptions are deducted each billing day.</div>
+          {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
+          <Btn size="full" onClick={saveBalance}>Save Balance</Btn>
+        </div>
+      </Modal>
+
       <Modal open={modal === 'income'} onClose={() => setModal(null)} title="Log Paycheck">
         <div className="flex flex-col gap-3">
           <Input label="Amount ($)" type="number" placeholder="412.00" value={form.amount || ''} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} />
@@ -316,6 +415,7 @@ export default function Finance() {
           <Input label="Hours worked (optional)" type="number" placeholder="38" value={form.hours || ''} onChange={e => setForm(p => ({ ...p, hours: e.target.value }))} />
           <Input label="Tips (optional, $)" type="number" placeholder="45.00" value={form.tips || ''} onChange={e => setForm(p => ({ ...p, tips: e.target.value }))} />
           <Input label="Notes (optional)" placeholder="e.g. holiday pay" value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
+          {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
           <Btn size="full" onClick={saveIncome}>Save Check</Btn>
         </div>
       </Modal>
@@ -327,6 +427,7 @@ export default function Finance() {
           <Input label="Billing day of month" type="number" placeholder="3" value={form.billing_day || ''} onChange={e => setForm(p => ({ ...p, billing_day: e.target.value }))} />
           <Select label="Category" value={form.category || ''} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
             options={['entertainment','bills','health','shopping','other'].map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))} />
+          {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
           <Btn size="full" onClick={saveSub}>Add Subscription</Btn>
         </div>
       </Modal>
@@ -338,6 +439,7 @@ export default function Finance() {
           <Input label="Date" type="date" value={form.date || today} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
           <Select label="Category" value={form.category || ''} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
             options={['groceries','dining','transport','entertainment','shopping','bills','health','other'].map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))} />
+          {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
           <Btn size="full" onClick={saveExpense}>Log Expense</Btn>
         </div>
       </Modal>

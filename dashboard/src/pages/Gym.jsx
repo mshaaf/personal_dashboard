@@ -101,12 +101,24 @@ export default function Gym() {
     setHistory(result)
   }
 
+  // Build the default sets structure for a split's exercises
+  function defaultSetsFor(split) {
+    const newSets = {}
+    ;(SPLIT_EXERCISES[split] || []).forEach(name => { newSets[name] = [{ weight: '', reps: '' }] })
+    return newSets
+  }
+
   async function selectSplit(split) {
     if (!uid) { setErr('Still loading your account — please try again in a moment.'); return }
     setSelectedSplit(split)
     if (session) {
-      await supabase.from('workout_sessions').update({ split_day: split }).eq('id', session.id)
+      const { error } = await supabase.from('workout_sessions').update({ split_day: split }).eq('id', session.id)
+      if (error) { console.error('selectSplit update failed:', error); setErr('Could not switch split: ' + error.message); return }
+      setErr(null)
       setSession(s => ({ ...s, split_day: split }))
+      // Show the new split's exercises while keeping anything already entered today
+      // (this is what makes push/pull/legs lists actually update when switching).
+      if (split !== 'cardio') setSets(prev => ({ ...defaultSetsFor(split), ...prev }))
       return
     }
     // Create new session
@@ -118,12 +130,7 @@ export default function Gym() {
     setSession(data)
 
     // Init sets structure from default exercises
-    if (split !== 'cardio') {
-      const exNames = SPLIT_EXERCISES[split] || []
-      const newSets = {}
-      exNames.forEach(name => { newSets[name] = [{ weight: '', reps: '' }] })
-      setSets(newSets)
-    }
+    if (split !== 'cardio') setSets(defaultSetsFor(split))
   }
 
   async function logSet(exerciseName, setIdx, field, value) {
@@ -154,7 +161,7 @@ export default function Gym() {
     const { error } = await supabase.from('workout_sets').upsert({
       session_id: session.id, exercise_id: ex.id,
       set_number: setIdx + 1, weight: +setData.weight, reps: +setData.reps,
-    })
+    }, { onConflict: 'session_id,exercise_id,set_number' })
     if (error) { console.error('saveSet failed:', error); setErr('Could not save set: ' + error.message) }
   }
 
@@ -244,7 +251,7 @@ export default function Gym() {
           <p className="text-[13px] text-[var(--text-2)] mt-0.5">Progressive overload tracker</p>
         </div>
         <div className="flex gap-2">
-          <Btn variant="ghost" size="sm" onClick={() => { setForm({}); setModal('cardio') }}>
+          <Btn variant="ghost" size="sm" onClick={() => { setErr(null); setForm({}); setModal('cardio') }}>
             <Activity size={13} /> Log Cardio
           </Btn>
           {session && !session.completed_at && (
@@ -301,7 +308,7 @@ export default function Gym() {
                 icon={Activity}
                 title="Log a cardio session"
                 sub="Run, bike, row, walk, swim..."
-                action={<Btn onClick={() => { setForm({ date: today }); setModal('cardio') }}>+ Log Cardio</Btn>}
+                action={<Btn onClick={() => { setErr(null); setForm({ date: today }); setModal('cardio') }}>+ Log Cardio</Btn>}
               />
             </Card>
           ) : (
@@ -483,6 +490,7 @@ export default function Gym() {
           <Input label="Avg HR (optional)" type="number" placeholder="145" value={form.avg_hr || ''} onChange={e => setForm(p => ({ ...p, avg_hr: e.target.value }))} />
           <Input label="Calories (optional)" type="number" placeholder="320" value={form.calories || ''} onChange={e => setForm(p => ({ ...p, calories: e.target.value }))} />
           <Input label="Date" type="date" value={form.date || today} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+          {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
           <Btn size="full" onClick={saveCardio}>Save Session</Btn>
         </div>
       </Modal>
