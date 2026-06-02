@@ -13,6 +13,7 @@ import Reading from './pages/Reading'
 import Goals from './pages/Goals'
 import Projects from './pages/Projects'
 import CalendarPage from './pages/Calendar'
+import Activities from './pages/Activities'
 
 const NAV = [
   {
@@ -27,6 +28,7 @@ const NAV = [
     items: [
       { to: '/finance', label: 'Finance', icon: DollarIcon },
       { to: '/gym', label: 'Gym', icon: GymIcon },
+      { to: '/activities', label: 'Activities', icon: FootIcon },
       { to: '/supplements', label: 'Supplements', icon: PillIcon },
       { to: '/bevel', label: 'Bevel', icon: HeartIcon },
       { to: '/reading', label: 'Reading', icon: BookIcon },
@@ -145,6 +147,7 @@ export default function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/finance" element={<Finance />} />
           <Route path="/gym" element={<Gym />} />
+          <Route path="/activities" element={<Activities />} />
           <Route path="/supplements" element={<Supplements />} />
           <Route path="/bevel" element={<Bevel />} />
           <Route path="/reading" element={<Reading />} />
@@ -158,12 +161,13 @@ export default function App() {
 }
 
 // ——— Icons ———
-import { LayoutDashboard, DollarSign, Dumbbell, Pill, Activity, BookOpen, Target, FolderOpen, Calendar, LogOut, Menu } from 'lucide-react'
+import { LayoutDashboard, DollarSign, Dumbbell, Pill, Activity, Footprints, BookOpen, Target, FolderOpen, Calendar, LogOut, Menu } from 'lucide-react'
 
 function GridIcon(p) { return <LayoutDashboard {...p} /> }
 function CalIcon(p) { return <Calendar {...p} /> }
 function DollarIcon(p) { return <DollarSign {...p} /> }
 function GymIcon(p) { return <Dumbbell {...p} /> }
+function FootIcon(p) { return <Footprints {...p} /> }
 function PillIcon(p) { return <Pill {...p} /> }
 function HeartIcon(p) { return <Activity {...p} /> }
 function BookIcon(p) { return <BookOpen {...p} /> }

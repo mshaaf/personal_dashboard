@@ -292,6 +292,46 @@ create table if not exists daily_tasks (
 );
 
 -- ——————————————————————————————————————
+-- STRAVA
+-- ——————————————————————————————————————
+-- Tokens are written only by the server-side Vercel functions (service role,
+-- which bypasses RLS). RLS still scopes every row to its owner.
+create table if not exists strava_accounts (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  strava_athlete_id bigint,
+  athlete_name text,
+  athlete_avatar text,
+  access_token text,
+  refresh_token text,
+  token_expires_at timestamptz,
+  scope text,
+  last_sync_at timestamptz,
+  connected_at timestamptz default now()
+);
+
+create table if not exists strava_activities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade not null,
+  strava_id bigint not null,
+  name text,
+  sport_type text,                 -- Run | Ride | Swim | ...
+  start_date timestamptz,          -- start_date_local
+  distance_m numeric,              -- meters (convert to mi in UI)
+  moving_time_s int,
+  elapsed_time_s int,
+  total_elevation_gain_m numeric,
+  average_speed numeric,           -- m/s -> pace in UI
+  average_heartrate numeric,
+  max_heartrate numeric,
+  calories numeric,
+  map_polyline text,
+  raw jsonb,
+  created_at timestamptz default now(),
+  unique(user_id, strava_id)
+);
+create index if not exists strava_activities_user_date_idx on strava_activities(user_id, start_date desc);
+
+-- ——————————————————————————————————————
 -- ROW LEVEL SECURITY
 -- ——————————————————————————————————————
 -- Enable RLS on all tables
@@ -327,6 +367,9 @@ create policy "user can manage own sets" on workout_sets for all using (
   exists (select 1 from workout_sessions ws where ws.id = session_id and is_own_user_id(ws.user_id))
 );
 create policy "user can manage own cardio" on cardio_sessions for all using (is_own_user_id(user_id));
+
+create policy "user can manage own strava account" on strava_accounts for all using (is_own_user_id(user_id));
+create policy "user can manage own strava activities" on strava_activities for all using (is_own_user_id(user_id));
 
 create policy "user can manage own supplements" on supplements for all using (is_own_user_id(user_id));
 create policy "user can manage own supplement logs" on supplement_logs for all using (is_own_user_id(user_id));
