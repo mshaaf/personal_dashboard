@@ -44,12 +44,16 @@ export function AuthProvider({ children }) {
     })
   }
 
+  async function verifyOtp(email, token) {
+    return supabase.auth.verifyOtp({ email, token, type: 'email' })
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithOtp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithOtp, verifyOtp, signOut }}>
       {children}
     </AuthContext.Provider>
   )

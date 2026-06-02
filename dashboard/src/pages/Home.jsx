@@ -147,12 +147,12 @@ export default function Home() {
 
       <div className="grid grid-cols-2 gap-3.5">
         {/* Day Ring */}
-        <Card>
+        <Card className="col-span-2 md:col-span-1">
           <DayRing />
         </Card>
 
         {/* Finance Pulse */}
-        <Card onClick={() => nav('/finance')} className="cursor-pointer hover:border-border-light transition-colors">
+        <Card onClick={() => nav('/finance')} className="col-span-2 md:col-span-1 cursor-pointer hover:border-border-light transition-colors">
           <Label>Finance · {format(now, 'MMMM yyyy')}</Label>
           <div className={`font-mono text-[22px] md:text-[28px] font-bold tracking-tight ${net >= 0 ? 'text-success' : 'text-crimson'}`}>
             {net >= 0 ? '+' : '−'}${Math.abs(net).toFixed(2)}

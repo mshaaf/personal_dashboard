@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useUser } from '../hooks/useUser'
 import { Card, Btn, Input } from '../components/ui'
-import { Mail, Check } from 'lucide-react'
+import { Mail, KeyRound } from 'lucide-react'
 
 export default function Login() {
-  const { signInWithOtp } = useUser()
+  const { signInWithOtp, verifyOtp } = useUser()
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState(null)
 
   async function submit(e) {
@@ -24,6 +26,26 @@ export default function Login() {
     setSent(true)
   }
 
+  async function verify(e) {
+    e.preventDefault()
+    if (code.trim().length < 6) return
+    setVerifying(true)
+    setError(null)
+    const { error } = await verifyOtp(email.trim(), code.trim())
+    setVerifying(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    // onAuthStateChange in useUser hydrates the session and re-renders the app.
+  }
+
+  function reset() {
+    setSent(false)
+    setCode('')
+    setError(null)
+  }
+
   return (
     <div className="flex items-center justify-center h-screen bg-bg p-4">
       <div className="w-full max-w-sm">
@@ -36,14 +58,30 @@ export default function Login() {
 
         <Card>
           {sent ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <Check size={28} className="text-success" />
-              <div className="text-[14px] font-semibold">Check your email</div>
-              <div className="text-[12px] text-[var(--text-3)]">
-                We sent a magic link to <span className="text-[var(--text-2)]">{email}</span>. Open it on this device to sign in.
+            <form onSubmit={verify} className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-[13px] font-semibold mb-1">
+                <KeyRound size={15} className="text-crimson" /> Enter your code
               </div>
-              <Btn variant="ghost" size="sm" onClick={() => setSent(false)}>Use a different email</Btn>
-            </div>
+              <div className="text-[12px] text-[var(--text-3)]">
+                We sent a 6-digit code to <span className="text-[var(--text-2)]">{email}</span>. Enter it below to sign in.
+              </div>
+              <Input
+                label="6-digit code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="123456"
+                value={code}
+                onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                autoFocus
+              />
+              {error && <div className="text-[11px] text-crimson">{error}</div>}
+              <Btn type="submit" size="full" disabled={verifying || code.trim().length < 6}>
+                {verifying ? 'Verifying…' : 'Verify & sign in'}
+              </Btn>
+              <Btn variant="ghost" size="sm" onClick={reset}>Use a different email</Btn>
+            </form>
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-3">
               <div className="flex items-center gap-2 text-[13px] font-semibold mb-1">
@@ -59,7 +97,7 @@ export default function Login() {
               />
               {error && <div className="text-[11px] text-crimson">{error}</div>}
               <Btn type="submit" size="full" disabled={sending}>
-                {sending ? 'Sending…' : 'Send magic link'}
+                {sending ? 'Sending…' : 'Send code'}
               </Btn>
             </form>
           )}
