@@ -92,7 +92,7 @@ export function Projects() {
   const STATUS_OPTIONS = ['active','paused','shipped','abandoned'].map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) }))
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Side Projects</h1>

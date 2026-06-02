@@ -122,7 +122,7 @@ export default function CalendarPage() {
 
   if (!CLIENT_ID) {
     return (
-      <div className="p-7 animate-in">
+      <div className="p-4 md:p-7 animate-in">
         <div className="mb-6">
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Calendar</h1>
           <p className="text-[13px] text-[var(--text-2)] mt-0.5">Google Calendar integration</p>
@@ -147,7 +147,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -175,7 +175,7 @@ export default function CalendarPage() {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-[1fr_280px] gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
           {/* Calendar grid */}
           <div>
             {/* Month nav */}

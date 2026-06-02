@@ -218,7 +218,7 @@ export default function Finance() {
   }
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       {err && (
         <div className="mb-4 text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">
           {err}
@@ -237,7 +237,7 @@ export default function Finance() {
               <ChevronRight size={15} />
             </button>
           </div>
-          <div className={`font-mono text-[42px] font-black tracking-[-0.03em] leading-none ${inGreen ? 'text-success' : 'text-crimson'}`}>
+          <div className={`font-mono text-[30px] md:text-[42px] font-black tracking-[-0.03em] leading-none ${inGreen ? 'text-success' : 'text-crimson'}`}>
             {inGreen ? '+' : '−'}${Math.abs(net).toFixed(2)}
           </div>
           <div className="text-[12px] text-[var(--text-2)] mt-1.5">
@@ -290,7 +290,7 @@ export default function Finance() {
               <div>
                 <Label className="mb-1">Current Balance</Label>
                 {hasBalance ? (
-                  <div className={`font-mono text-[36px] font-black tracking-[-0.03em] leading-none ${currentBalance >= 0 ? 'text-success' : 'text-crimson'}`}>
+                  <div className={`font-mono text-[26px] md:text-[36px] font-black tracking-[-0.03em] leading-none ${currentBalance >= 0 ? 'text-success' : 'text-crimson'}`}>
                     ${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 ) : (

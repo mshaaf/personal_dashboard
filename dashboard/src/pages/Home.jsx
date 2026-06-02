@@ -136,7 +136,7 @@ export default function Home() {
   const sprintPct = sprint ? Math.min(100, (now - new Date(sprint.start_date)) / (new Date(sprint.end_date) - new Date(sprint.start_date)) * 100) : 0
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-[22px] font-black tracking-[-0.03em]">
@@ -154,7 +154,7 @@ export default function Home() {
         {/* Finance Pulse */}
         <Card onClick={() => nav('/finance')} className="cursor-pointer hover:border-border-light transition-colors">
           <Label>Finance · {format(now, 'MMMM yyyy')}</Label>
-          <div className={`font-mono text-[28px] font-bold tracking-tight ${net >= 0 ? 'text-success' : 'text-crimson'}`}>
+          <div className={`font-mono text-[22px] md:text-[28px] font-bold tracking-tight ${net >= 0 ? 'text-success' : 'text-crimson'}`}>
             {net >= 0 ? '+' : '−'}${Math.abs(net).toFixed(2)}
           </div>
           <div className="text-[11px] text-[var(--text-3)] mt-1 leading-relaxed">

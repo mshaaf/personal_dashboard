@@ -74,7 +74,7 @@ export default function Bevel() {
   }
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Bevel</h1>
@@ -93,7 +93,7 @@ export default function Bevel() {
           { key: 'hrv', label: 'HRV', unit: 'ms' },
         ].map(({ key, label, unit }) => (
           <Card key={key} className="text-center py-6">
-            <div className={`font-mono text-[38px] font-black leading-none ${scoreColor(today?.[key])}`}>
+            <div className={`font-mono text-[28px] md:text-[38px] font-black leading-none ${scoreColor(today?.[key])}`}>
               {today?.[key] ?? '—'}{today?.[key] && unit ? <span className="text-[16px] font-normal">{unit}</span> : null}
             </div>
             <div className="text-[9px] font-bold tracking-[0.08em] uppercase text-[var(--text-3)] mt-2">{label}</div>

@@ -153,7 +153,7 @@ export default function Goals() {
 
   if (!sprint) {
     return (
-      <div className="p-7 animate-in">
+      <div className="p-4 md:p-7 animate-in">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-[22px] font-black tracking-[-0.03em]">12 Week Year</h1>
@@ -168,7 +168,7 @@ export default function Goals() {
   }
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">12 Week Year</h1>
@@ -230,7 +230,7 @@ export default function Goals() {
                 {weekScores.length > 0 && (
                   <div className="mb-4">
                     <Label className="mb-1.5">Weekly Lead % — Target ≥ 85%</Label>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1 md:gap-1.5">
                       {Array.from({ length: 12 }, (_, i) => {
                         const ws = weekScores[i]
                         const color = !ws ? 'bg-border' : ws.pct >= 85 ? 'bg-success' : ws.pct >= 70 ? 'bg-warn' : 'bg-crimson'

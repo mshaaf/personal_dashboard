@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom'
 import { useToday } from './hooks/useToday'
 import { useUser } from './hooks/useUser'
@@ -43,6 +44,7 @@ const NAV = [
 export default function App() {
   const { dateShort } = useToday()
   const { user, loading, signOut } = useUser()
+  const [navOpen, setNavOpen] = useState(false)
 
   if (loading) {
     return (
@@ -56,9 +58,16 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
+      {/* Mobile drawer backdrop */}
+      {navOpen && (
+        <div className="fixed inset-0 z-30 bg-black/60 md:hidden" onClick={() => setNavOpen(false)} />
+      )}
+
+      {/* Sidebar — static on desktop, slide-out drawer on mobile */}
       <nav
-        className="w-[216px] flex-shrink-0 flex flex-col border-r border-border"
+        className={`fixed md:static inset-y-0 left-0 z-40 w-[216px] flex-shrink-0 flex flex-col border-r border-border
+          transform transition-transform duration-200 md:translate-x-0
+          ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{ background: 'var(--surface)' }}
       >
         {/* Logo */}
@@ -81,6 +90,7 @@ export default function App() {
                   key={item.to}
                   to={item.to}
                   end={item.exact}
+                  onClick={() => setNavOpen(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-2.5 px-5 py-2.5 text-[13px] font-medium transition-all border-l-2
                     ${isActive
@@ -120,7 +130,16 @@ export default function App() {
       </nav>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto bg-bg">
+      <main className="flex-1 overflow-y-auto bg-bg min-w-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden sticky top-0 z-20 flex items-center gap-3 px-4 py-3 border-b border-border" style={{ background: 'var(--surface)' }}>
+          <button onClick={() => setNavOpen(true)} className="text-[var(--text-2)] hover:text-[var(--text)] transition-colors" aria-label="Open menu">
+            <Menu size={20} />
+          </button>
+          <div className="text-[14px] font-black tracking-[-0.03em]">
+            DASH<span className="text-crimson">.</span>
+          </div>
+        </div>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/calendar" element={<CalendarPage />} />
@@ -139,7 +158,7 @@ export default function App() {
 }
 
 // ——— Icons ———
-import { LayoutDashboard, DollarSign, Dumbbell, Pill, Activity, BookOpen, Target, FolderOpen, Calendar, LogOut } from 'lucide-react'
+import { LayoutDashboard, DollarSign, Dumbbell, Pill, Activity, BookOpen, Target, FolderOpen, Calendar, LogOut, Menu } from 'lucide-react'
 
 function GridIcon(p) { return <LayoutDashboard {...p} /> }
 function CalIcon(p) { return <Calendar {...p} /> }

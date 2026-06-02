@@ -61,7 +61,7 @@ export function Supplements() {
   const total = supps.length
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Supplements</h1>

@@ -166,7 +166,7 @@ export default function Reading() {
   const avgPerDay = sessions.length > 0 ? weekPages / 7 : 0
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Reading</h1>
@@ -185,7 +185,7 @@ export default function Reading() {
       </div>
 
       {/* Stats */}
-      <div className="flex gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <StatBox label="Today" value={`${todayPages} pg`} color={todayPages > 0 ? 'white' : ''} />
         <StatBox label="This week" value={`${weekPages} pg`} />
         <StatBox label="7-day avg" value={`${Math.round(avgPerDay)} pg`} />

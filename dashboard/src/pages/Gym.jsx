@@ -84,7 +84,7 @@ export default function Gym() {
 
   async function loadHistory(userId) {
     const { data } = await supabase.from('workout_sets')
-      .select('*, exercises(name), workout_sessions!inner(session_date,split_day)')
+      .select('*, exercises(name), workout_sessions!inner(id,session_date,split_day)')
       .eq('workout_sessions.user_id', userId)
       .order('workout_sessions(session_date)', { ascending: false })
       .limit(500)
@@ -95,10 +95,11 @@ export default function Gym() {
       if (!name) return
       if (!byEx[name]) byEx[name] = {}
       const date = s.workout_sessions?.session_date
-      if (!byEx[name][date]) byEx[name][date] = { date, topWeight: 0, topReps: 0 }
+      if (!byEx[name][date]) byEx[name][date] = { date, topWeight: 0, topReps: 0, sessionId: s.workout_sessions?.id, exerciseId: s.exercise_id, topSetId: s.id }
       if (+s.weight > byEx[name][date].topWeight) {
         byEx[name][date].topWeight = +s.weight
         byEx[name][date].topReps = +s.reps
+        byEx[name][date].topSetId = s.id
       }
     })
 
@@ -238,6 +239,31 @@ export default function Gym() {
     await loadCardio(uid)
   }
 
+  function editHistorySet(point) {
+    setErr(null)
+    setForm({ id: point.topSetId, weight: point.topWeight, reps: point.topReps, date: point.date })
+    setModal('editSet')
+  }
+
+  async function saveHistorySet() {
+    if (!form.weight || !form.reps) { setErr('Enter a weight and reps.'); return }
+    const { error } = await supabase.from('workout_sets')
+      .update({ weight: +form.weight, reps: +form.reps }).eq('id', form.id)
+    if (error) { console.error('saveHistorySet failed:', error); setErr('Could not save set: ' + error.message); return }
+    setErr(null)
+    setModal(null)
+    setForm({})
+    await loadHistory(uid)
+  }
+
+  async function deleteHistoryDate(point) {
+    if (!window.confirm('Delete this exercise’s sets for ' + point.date + '?')) return
+    const { error } = await supabase.from('workout_sets').delete()
+      .eq('session_id', point.sessionId).eq('exercise_id', point.exerciseId)
+    if (error) { console.error('deleteHistoryDate failed:', error); setErr('Could not delete: ' + error.message); return }
+    await loadHistory(uid)
+  }
+
   async function completeWorkout() {
     if (!session) return
     await supabase.from('workout_sessions').update({ completed_at: new Date().toISOString() }).eq('id', session.id)
@@ -280,18 +306,18 @@ export default function Gym() {
   const estOneRM = (w, r) => r === 1 ? w : Math.round(w * (1 + r / 30))
 
   return (
-    <div className="p-7 animate-in">
+    <div className="p-4 md:p-7 animate-in">
       {err && (
         <div className="mb-4 text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">
           {err}
         </div>
       )}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Gym</h1>
           <p className="text-[13px] text-[var(--text-2)] mt-0.5">Progressive overload tracker</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Btn variant="ghost" size="sm" onClick={() => { setErr(null); setForm({}); setModal('cardio') }}>
             <Activity size={13} /> Log Cardio
           </Btn>
@@ -387,12 +413,12 @@ export default function Gym() {
                     {isOpen && (
                       <>
                         {/* Set headers */}
-                        <div className="grid grid-cols-[28px_1fr_1fr_60px_20px] gap-2 text-[9px] font-bold tracking-[0.07em] uppercase text-[var(--text-3)] mb-1.5 px-0.5">
-                          <span>SET</span><span className="text-center">LBS</span><span className="text-center">REPS</span><span className="text-right">LAST WK</span><span />
+                        <div className="grid grid-cols-[28px_1fr_1fr_20px] md:grid-cols-[28px_1fr_1fr_60px_20px] gap-2 text-[9px] font-bold tracking-[0.07em] uppercase text-[var(--text-3)] mb-1.5 px-0.5">
+                          <span>SET</span><span className="text-center">LBS</span><span className="text-center">REPS</span><span className="text-right hidden md:block">LAST WK</span><span />
                         </div>
 
                         {exSets.map((s, i) => (
-                          <div key={i} className="grid grid-cols-[28px_1fr_1fr_60px_20px] gap-2 items-center mb-1.5">
+                          <div key={i} className="grid grid-cols-[28px_1fr_1fr_20px] md:grid-cols-[28px_1fr_1fr_60px_20px] gap-2 items-center mb-1.5">
                             <span className="font-mono text-[10px] text-[var(--text-3)]">S{i + 1}</span>
                             <input
                               className="px-2 py-1.5 text-[12px] font-mono bg-surface border border-border rounded-[6px] text-[var(--text)] focus:border-crimson outline-none text-center w-full"
@@ -408,7 +434,7 @@ export default function Gym() {
                               onChange={e => logSet(exName, i, 'reps', e.target.value)}
                               onBlur={() => saveSet(exName, i)}
                             />
-                            <div className="font-mono text-[11px] text-[var(--text-3)] text-right">
+                            <div className="font-mono text-[11px] text-[var(--text-3)] text-right hidden md:block">
                               {i === 0 && lastWk ? lastWk : '—'}
                             </div>
                             <button onClick={() => deleteSet(exName, i)} className="text-[var(--text-3)] hover:text-crimson transition-colors flex items-center justify-center" title="Delete set">
@@ -489,9 +515,17 @@ export default function Gym() {
           {Object.keys(history).length === 0 && (
             <Empty icon={Dumbbell} title="No history yet" sub="Log your first workout to see trends" />
           )}
-          {Object.entries(history).map(([name, data]) => (
+          {Object.entries(history).map(([name, data]) => {
+            const histKey = `hist_${name}`
+            const isOpen = expanded[histKey] === true
+            return (
             <div key={name} className="mb-5">
-              <div className="text-[13px] font-semibold mb-1">{name}</div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-[13px] font-semibold">{name}</div>
+                <button onClick={() => setExpanded(p => ({ ...p, [histKey]: !isOpen }))} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors">
+                  {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                </button>
+              </div>
               <div className="text-[11px] text-[var(--text-3)] mb-1.5">
                 Best: {Math.max(...data.map(d => d.topWeight))}lbs × {data.find(d => d.topWeight === Math.max(...data.map(d => d.topWeight)))?.topReps}
               </div>
@@ -506,11 +540,33 @@ export default function Gym() {
                   </ResponsiveContainer>
                 </div>
               )}
+              {isOpen && (
+                <div className="mt-2 pt-2 border-t border-border">
+                  {[...data].reverse().map(point => (
+                    <div key={point.date} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
+                      <div className="font-mono text-[11px] text-[var(--text-3)] w-20 flex-shrink-0">{point.date}</div>
+                      <div className="font-mono text-[12px] flex-1">{point.topWeight}lbs × {point.topReps}</div>
+                      <button onClick={() => editHistorySet(point)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit top set"><Pencil size={13} /></button>
+                      <button onClick={() => deleteHistoryDate(point)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete this day"><Trash2 size={13} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ))}
+          )})}
         </Card>
         </>
       )}
+
+      {/* Edit history set modal */}
+      <Modal open={modal === 'editSet'} onClose={() => { setModal(null); setForm({}) }} title={`Edit Top Set${form.date ? ' · ' + form.date : ''}`}>
+        <div className="flex flex-col gap-3">
+          <Input label="Weight (lbs)" type="number" value={form.weight ?? ''} onChange={e => setForm(p => ({ ...p, weight: e.target.value }))} />
+          <Input label="Reps" type="number" value={form.reps ?? ''} onChange={e => setForm(p => ({ ...p, reps: e.target.value }))} />
+          {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
+          <Btn size="full" onClick={saveHistorySet}>Save Changes</Btn>
+        </div>
+      </Modal>
 
       {/* Add exercise modal */}
       <Modal open={modal === 'addExercise'} onClose={() => setModal(null)} title="Add Exercise">
