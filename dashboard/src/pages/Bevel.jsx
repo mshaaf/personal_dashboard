@@ -3,7 +3,7 @@ import { useToday } from '../hooks/useToday'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, Modal, Input, Empty } from '../components/ui'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Activity, Plus } from 'lucide-react'
+import { Activity, Plus, Pencil, Trash2 } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 
 export default function Bevel() {
@@ -39,6 +39,23 @@ export default function Bevel() {
     }
     await supabase.from('bevel_daily').upsert(payload, { onConflict: 'user_id,entry_date' })
     setModal(false); setForm({})
+    await init()
+  }
+
+  function editEntry(e) {
+    setForm({
+      date: e.entry_date,
+      sleep: e.sleep_score ?? '',
+      recovery: e.recovery ?? '',
+      hrv: e.hrv ?? '',
+      notes: e.notes ?? '',
+    })
+    setModal(true)
+  }
+
+  async function deleteEntry(id) {
+    if (!window.confirm('Delete this entry?')) return
+    await supabase.from('bevel_daily').delete().eq('id', id)
     await init()
   }
 
@@ -123,7 +140,7 @@ export default function Bevel() {
         <Label>Log History</Label>
         {entries.length === 0 && <Empty icon={Activity} title="No entries yet" sub="Log your first Bevel metrics" />}
         {entries.slice(0, 14).map(e => (
-          <div key={e.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
+          <div key={e.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0 group">
             <div className="font-mono text-[11px] text-[var(--text-3)] w-20 flex-shrink-0">{e.entry_date}</div>
             <div className="flex gap-4 flex-1 text-[12px] font-mono">
               {e.sleep_score !== null && <span className={scoreColor(e.sleep_score)}>S: {e.sleep_score}</span>}
@@ -131,6 +148,10 @@ export default function Bevel() {
               {e.hrv !== null && <span>HRV: {e.hrv}ms</span>}
             </div>
             {e.notes && <div className="text-[11px] text-[var(--text-3)] truncate max-w-[120px]">{e.notes}</div>}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button onClick={() => editEntry(e)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit"><Pencil size={13} /></button>
+              <button onClick={() => deleteEntry(e.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete"><Trash2 size={13} /></button>
+            </div>
           </div>
         ))}
       </Card>

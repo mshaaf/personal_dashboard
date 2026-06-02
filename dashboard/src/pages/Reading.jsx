@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useToday } from '../hooks/useToday'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, Modal, Input, Bar, Pill, Empty, StatBox } from '../components/ui'
-import { BookOpen, Plus, Search } from 'lucide-react'
+import { BookOpen, Plus, Search, Pencil, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function Reading() {
@@ -119,6 +119,40 @@ export default function Reading() {
     await init()
   }
 
+  function editBook(b) {
+    setSearchErr(null)
+    setForm({
+      id: b.id,
+      title: b.title || '',
+      author: b.author || '',
+      pages: b.total_pages || '',
+      current_page: b.current_page ?? 0,
+    })
+    setModal('editBook')
+  }
+
+  async function saveBookEdit() {
+    if (!form.title) { setSearchErr('Title is required.'); return }
+    const total = form.pages ? +form.pages : null
+    const current = form.current_page ? +form.current_page : 0
+    const { error } = await supabase.from('books').update({
+      title: form.title,
+      author: form.author || null,
+      total_pages: total,
+      current_page: total ? Math.min(current, total) : current,
+      status: total && current >= total ? 'finished' : 'reading',
+    }).eq('id', form.id)
+    if (error) { console.error('saveBookEdit failed:', error); setSearchErr('Could not save changes: ' + error.message); return }
+    setModal(null); setForm({}); setSearchErr(null)
+    await init()
+  }
+
+  async function deleteBook(id) {
+    if (!window.confirm('Delete this book and all its reading sessions?')) return
+    await supabase.from('books').delete().eq('id', id)
+    await init()
+  }
+
   const reading = books.filter(b => b.status === 'reading')
   const finished = books.filter(b => b.status === 'finished')
   const todaySessions = sessions.filter(s => s.session_date === today)
@@ -173,8 +207,16 @@ export default function Reading() {
               <div className="w-14 h-20 bg-surface2 border border-border rounded-[4px] flex items-center justify-center flex-shrink-0 text-[20px]">📚</div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="text-[16px] font-bold truncate">{b.title}</div>
-              {b.author && <div className="text-[12px] text-[var(--text-3)]">{b.author}</div>}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[16px] font-bold truncate">{b.title}</div>
+                  {b.author && <div className="text-[12px] text-[var(--text-3)]">{b.author}</div>}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => editBook(b)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit"><Pencil size={14} /></button>
+                  <button onClick={() => deleteBook(b.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete"><Trash2 size={14} /></button>
+                </div>
+              </div>
               <div className="mt-2.5 mb-1.5">
                 <div className="flex justify-between text-[11px] text-[var(--text-3)] mb-1.5">
                   <span>Page {b.current_page} of {b.total_pages || '?'}</span>
@@ -184,10 +226,11 @@ export default function Reading() {
                 </div>
                 <Bar value={b.current_page} max={b.total_pages || 1} height={5} />
               </div>
-              <div className="flex gap-2 flex-wrap mt-2">
+              <div className="flex gap-2 flex-wrap mt-2 items-center">
                 <Pill color="red">Reading</Pill>
                 {todayPages > 0 && <Pill color="muted">{todayPages} pg today</Pill>}
                 {todayMins > 0 && <Pill color="muted">{todayMins} min today</Pill>}
+                <button onClick={() => updateStatus(b.id, 'finished')} className="text-[10px] text-[var(--text-3)] hover:text-success transition-colors ml-auto">Mark finished</button>
               </div>
             </div>
           </div>
@@ -212,6 +255,8 @@ export default function Reading() {
                 <div className="text-[11px] text-[var(--text-3)]">{b.author} · {b.finished_at || '—'}</div>
               </div>
               <Pill color="green">✓</Pill>
+              <button onClick={() => editBook(b)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit"><Pencil size={13} /></button>
+              <button onClick={() => deleteBook(b.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete"><Trash2 size={13} /></button>
             </div>
           ))}
         </Card>
@@ -271,6 +316,18 @@ export default function Reading() {
           <Input label="Pages read today" type="number" placeholder="20" value={form.pages || ''} onChange={e => setForm(p => ({ ...p, pages: e.target.value }))} />
           <Input label="Minutes read (optional)" type="number" placeholder="35" value={form.minutes || ''} onChange={e => setForm(p => ({ ...p, minutes: e.target.value }))} />
           <Btn size="full" onClick={logReading}>Log Session</Btn>
+        </div>
+      </Modal>
+
+      {/* Edit book modal */}
+      <Modal open={modal === 'editBook'} onClose={() => { setModal(null); setForm({}); setSearchErr(null) }} title="Edit Book">
+        <div className="flex flex-col gap-3">
+          <Input label="Title" value={form.title || ''} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
+          <Input label="Author" value={form.author || ''} onChange={e => setForm(p => ({ ...p, author: e.target.value }))} />
+          <Input label="Total pages" type="number" value={form.pages || ''} onChange={e => setForm(p => ({ ...p, pages: e.target.value }))} />
+          <Input label="Current page" type="number" value={form.current_page ?? ''} onChange={e => setForm(p => ({ ...p, current_page: e.target.value }))} />
+          {searchErr && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{searchErr}</div>}
+          <Btn size="full" onClick={saveBookEdit}>Save Changes</Btn>
         </div>
       </Modal>
     </div>

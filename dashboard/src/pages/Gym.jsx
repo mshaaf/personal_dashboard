@@ -3,7 +3,7 @@ import { useToday } from '../hooks/useToday'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, Modal, Input, Select, TabBar, Bar, Empty } from '../components/ui'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, Trophy, ChevronDown, ChevronUp, Search, Dumbbell, Activity } from 'lucide-react'
+import { Plus, Trophy, ChevronDown, ChevronUp, Search, Dumbbell, Activity, Pencil, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 // Default PPL exercises
@@ -29,6 +29,7 @@ export default function Gym() {
   const [sets, setSets] = useState({}) // { exerciseName: [{ weight, reps }] }
   const [exercises, setExercises] = useState([]) // DB exercise list
   const [history, setHistory] = useState({}) // { exerciseName: [ {date, topWeight, topReps} ] }
+  const [cardio, setCardio] = useState([]) // logged cardio sessions
   const [expanded, setExpanded] = useState({})
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState({})
@@ -60,6 +61,13 @@ export default function Gym() {
 
     // Load recent history for all exercises
     await loadHistory(user.id)
+    await loadCardio(user.id)
+  }
+
+  async function loadCardio(userId) {
+    const { data } = await supabase.from('cardio_sessions')
+      .select('*').eq('user_id', userId).order('session_date', { ascending: false }).limit(30)
+    setCardio(data || [])
   }
 
   async function loadSets(sessionId) {
@@ -165,6 +173,19 @@ export default function Gym() {
     if (error) { console.error('saveSet failed:', error); setErr('Could not save set: ' + error.message) }
   }
 
+  async function deleteSet(exerciseName, setIdx) {
+    const s = sets[exerciseName]?.[setIdx]
+    if (s?.id) {
+      const { error } = await supabase.from('workout_sets').delete().eq('id', s.id)
+      if (error) { console.error('deleteSet failed:', error); setErr('Could not delete set: ' + error.message); return }
+    }
+    setSets(prev => {
+      const arr = [...(prev[exerciseName] || [])]
+      arr.splice(setIdx, 1)
+      return { ...prev, [exerciseName]: arr.length ? arr : [{ weight: '', reps: '' }] }
+    })
+  }
+
   async function addSet(exerciseName) {
     setSets(prev => ({
       ...prev,
@@ -183,18 +204,38 @@ export default function Gym() {
   async function saveCardio() {
     if (!form.cardio_type || !form.duration) return
     if (!uid) { setErr('Still loading your account — please try again in a moment.'); return }
-    const { error } = await supabase.from('cardio_sessions').insert({
-      user_id: uid, session_date: form.date || today,
+    const payload = {
+      session_date: form.date || today,
       cardio_type: form.cardio_type, duration_min: +form.duration,
       distance: form.distance ? +form.distance : null,
       avg_hr: form.avg_hr ? +form.avg_hr : null,
       calories: form.calories ? +form.calories : null,
       notes: form.notes || null,
-    })
+    }
+    const { error } = form.id
+      ? await supabase.from('cardio_sessions').update(payload).eq('id', form.id)
+      : await supabase.from('cardio_sessions').insert({ user_id: uid, ...payload })
     if (error) { console.error('saveCardio failed:', error); setErr('Could not save cardio: ' + error.message); return }
     setErr(null)
     setModal(null)
     setForm({})
+    await loadCardio(uid)
+  }
+
+  function editCardio(c) {
+    setErr(null)
+    setForm({
+      id: c.id, cardio_type: c.cardio_type, duration: c.duration_min,
+      distance: c.distance ?? '', avg_hr: c.avg_hr ?? '', calories: c.calories ?? '',
+      notes: c.notes ?? '', date: c.session_date,
+    })
+    setModal('cardio')
+  }
+
+  async function deleteCardio(id) {
+    if (!window.confirm('Delete this cardio session?')) return
+    await supabase.from('cardio_sessions').delete().eq('id', id)
+    await loadCardio(uid)
   }
 
   async function completeWorkout() {
@@ -346,12 +387,12 @@ export default function Gym() {
                     {isOpen && (
                       <>
                         {/* Set headers */}
-                        <div className="grid grid-cols-[28px_1fr_1fr_80px] gap-2 text-[9px] font-bold tracking-[0.07em] uppercase text-[var(--text-3)] mb-1.5 px-0.5">
-                          <span>SET</span><span className="text-center">LBS</span><span className="text-center">REPS</span><span className="text-right">LAST WK</span>
+                        <div className="grid grid-cols-[28px_1fr_1fr_60px_20px] gap-2 text-[9px] font-bold tracking-[0.07em] uppercase text-[var(--text-3)] mb-1.5 px-0.5">
+                          <span>SET</span><span className="text-center">LBS</span><span className="text-center">REPS</span><span className="text-right">LAST WK</span><span />
                         </div>
 
                         {exSets.map((s, i) => (
-                          <div key={i} className="grid grid-cols-[28px_1fr_1fr_80px] gap-2 items-center mb-1.5">
+                          <div key={i} className="grid grid-cols-[28px_1fr_1fr_60px_20px] gap-2 items-center mb-1.5">
                             <span className="font-mono text-[10px] text-[var(--text-3)]">S{i + 1}</span>
                             <input
                               className="px-2 py-1.5 text-[12px] font-mono bg-surface border border-border rounded-[6px] text-[var(--text)] focus:border-crimson outline-none text-center w-full"
@@ -370,6 +411,9 @@ export default function Gym() {
                             <div className="font-mono text-[11px] text-[var(--text-3)] text-right">
                               {i === 0 && lastWk ? lastWk : '—'}
                             </div>
+                            <button onClick={() => deleteSet(exName, i)} className="text-[var(--text-3)] hover:text-crimson transition-colors flex items-center justify-center" title="Delete set">
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         ))}
 
@@ -421,6 +465,25 @@ export default function Gym() {
 
       {/* History tab */}
       {tab === 'history' && (
+        <>
+        {cardio.length > 0 && (
+          <Card className="mb-4">
+            <Label>Cardio Sessions</Label>
+            {cardio.map(c => (
+              <div key={c.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
+                <div className="font-mono text-[11px] text-[var(--text-3)] w-20 flex-shrink-0">{c.session_date}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium capitalize">{(c.cardio_type || '').replace('_', ' ')}</div>
+                  <div className="text-[11px] text-[var(--text-3)]">
+                    {c.duration_min} min{c.distance ? ` · ${c.distance}` : ''}{c.avg_hr ? ` · ${c.avg_hr} bpm` : ''}{c.calories ? ` · ${c.calories} cal` : ''}
+                  </div>
+                </div>
+                <button onClick={() => editCardio(c)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit"><Pencil size={13} /></button>
+                <button onClick={() => deleteCardio(c.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete"><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </Card>
+        )}
         <Card>
           <Label>Exercise History</Label>
           {Object.keys(history).length === 0 && (
@@ -446,6 +509,7 @@ export default function Gym() {
             </div>
           ))}
         </Card>
+        </>
       )}
 
       {/* Add exercise modal */}
@@ -481,7 +545,7 @@ export default function Gym() {
       </Modal>
 
       {/* Cardio modal */}
-      <Modal open={modal === 'cardio'} onClose={() => setModal(null)} title="Log Cardio Session">
+      <Modal open={modal === 'cardio'} onClose={() => { setModal(null); setForm({}) }} title={form.id ? 'Edit Cardio Session' : 'Log Cardio Session'}>
         <div className="flex flex-col gap-3">
           <Select label="Type" value={form.cardio_type || ''} onChange={e => setForm(p => ({ ...p, cardio_type: e.target.value }))}
             options={['Run','Bike','Row','Incline Walk','Stairs','Swim','HIIT','Other'].map(v => ({ value: v.toLowerCase().replace(' ','_'), label: v }))} />
@@ -491,7 +555,7 @@ export default function Gym() {
           <Input label="Calories (optional)" type="number" placeholder="320" value={form.calories || ''} onChange={e => setForm(p => ({ ...p, calories: e.target.value }))} />
           <Input label="Date" type="date" value={form.date || today} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
           {err && <div className="text-[12px] text-crimson bg-[var(--crimson-dim)] border border-crimson/30 rounded-[8px] px-3 py-2">{err}</div>}
-          <Btn size="full" onClick={saveCardio}>Save Session</Btn>
+          <Btn size="full" onClick={saveCardio}>{form.id ? 'Save Changes' : 'Save Session'}</Btn>
         </div>
       </Modal>
     </div>

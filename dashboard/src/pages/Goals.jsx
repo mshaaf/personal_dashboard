@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useToday } from '../hooks/useToday'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, Modal, Input, Select, Bar, Pill, Checkbox, Empty, Divider } from '../components/ui'
-import { Target, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Target, Plus, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react'
 import { format, differenceInDays, differenceInWeeks } from 'date-fns'
 
 export default function Goals() {
@@ -60,6 +60,34 @@ export default function Goals() {
     if (!form.name || !sprint) return
     await supabase.from('goal_projects').insert({ user_id: uid, sprint_id: sprint.id, name: form.name, description: form.desc || null })
     setModal(null); setForm({})
+    await loadProjects(uid, sprint.id)
+  }
+
+  function editProject(proj) {
+    setForm({ id: proj.id, name: proj.name, desc: proj.description || '' })
+    setModal('editProject')
+  }
+
+  async function saveProjectEdit() {
+    if (!form.name) return
+    await supabase.from('goal_projects').update({ name: form.name, description: form.desc || null }).eq('id', form.id)
+    setModal(null); setForm({})
+    await loadProjects(uid, sprint.id)
+  }
+
+  async function deleteProject(id) {
+    if (!window.confirm('Delete this goal and all its measures?')) return
+    await supabase.from('goal_projects').delete().eq('id', id)
+    await loadProjects(uid, sprint.id)
+  }
+
+  async function deleteLead(id) {
+    await supabase.from('lead_measures').delete().eq('id', id)
+    await loadProjects(uid, sprint.id)
+  }
+
+  async function deleteLag(id) {
+    await supabase.from('lag_measures').delete().eq('id', id)
     await loadProjects(uid, sprint.id)
   }
 
@@ -187,9 +215,13 @@ export default function Goals() {
                   </span>
                 )}
               </div>
-              <button onClick={() => setExpanded(p => ({ ...p, [proj.id]: !isOpen }))} className="text-[var(--text-3)] hover:text-[var(--text)]">
-                {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => editProject(proj)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit goal"><Pencil size={14} /></button>
+                <button onClick={() => deleteProject(proj.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete goal"><Trash2 size={14} /></button>
+                <button onClick={() => setExpanded(p => ({ ...p, [proj.id]: !isOpen }))} className="text-[var(--text-3)] hover:text-[var(--text)]">
+                  {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+              </div>
             </div>
 
             {isOpen && (
@@ -237,6 +269,7 @@ export default function Goals() {
                           <div className="w-12 bg-border rounded-full" style={{ height: 3 }}>
                             <div className="bg-crimson rounded-full" style={{ height: 3, width: `${Math.min(100, (weekCount / (lm.target_per_period * (lm.cadence === 'daily' ? 7 : 1))) * 100)}%` }} />
                           </div>
+                          <button onClick={() => deleteLead(lm.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors ml-1" title="Delete"><Trash2 size={12} /></button>
                         </div>
                       </div>
                     )
@@ -287,6 +320,7 @@ export default function Goals() {
                             />
                           )}
                           <span className="text-[10px] text-[var(--text-3)]">{lm.unit || ''}</span>
+                          <button onClick={() => deleteLag(lm.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors ml-1" title="Delete"><Trash2 size={12} /></button>
                         </div>
                       </div>
                     )
@@ -321,6 +355,14 @@ export default function Goals() {
           <Input label="Goal name" placeholder="Get CCNA Certified" value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
           <Input label="Description (optional)" placeholder="Pass the exam by week 10" value={form.desc || ''} onChange={e => setForm(p => ({ ...p, desc: e.target.value }))} />
           <Btn size="full" onClick={addProject}>Add Goal</Btn>
+        </div>
+      </Modal>
+
+      <Modal open={modal === 'editProject'} onClose={() => { setModal(null); setForm({}) }} title="Edit Goal">
+        <div className="flex flex-col gap-3">
+          <Input label="Goal name" value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+          <Input label="Description (optional)" value={form.desc || ''} onChange={e => setForm(p => ({ ...p, desc: e.target.value }))} />
+          <Btn size="full" onClick={saveProjectEdit}>Save Changes</Btn>
         </div>
       </Modal>
     </div>

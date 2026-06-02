@@ -67,7 +67,13 @@ export default function CalendarPage() {
       setEvents(monthEvents)
       setError(null)
     } catch (e) {
-      setError('Failed to load calendar events')
+      console.error('loadEvents failed:', e)
+      const detail = e?.result?.error?.message || e?.message || ''
+      if (e?.status === 401 || /invalid|token|auth/i.test(detail)) {
+        setError('Session expired — click Disconnect, then Connect Google Calendar again.')
+      } else {
+        setError('Failed to load calendar events' + (detail ? `: ${detail}` : '') + '. Make sure this domain is an authorized origin in your Google Cloud OAuth client.')
+      }
     }
     setLoading(false)
   }

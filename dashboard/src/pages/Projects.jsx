@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Card, Label, Btn, Modal, Input, Select, Pill, Checkbox, Empty } from '../components/ui'
-import { FolderOpen, Plus, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import { FolderOpen, Plus, ExternalLink, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react'
 
 export function Projects() {
   const [projects, setProjects] = useState([])
@@ -32,6 +32,39 @@ export function Projects() {
       links: form.link ? [{ label: 'Link', url: form.link }] : [],
     })
     setModal(null); setForm({})
+    await init()
+  }
+
+  function editProject(proj) {
+    const link = Array.isArray(proj.links) && proj.links[0] ? proj.links[0].url : ''
+    setForm({
+      id: proj.id, name: proj.name, desc: proj.description || '',
+      status: proj.status || 'active', link,
+      start_date: proj.start_date || '', target_date: proj.target_date || '',
+    })
+    setModal('edit')
+  }
+
+  async function saveProjectEdit() {
+    if (!form.name) return
+    await supabase.from('side_projects').update({
+      name: form.name, description: form.desc || null,
+      status: form.status || 'active', start_date: form.start_date || null,
+      target_date: form.target_date || null,
+      links: form.link ? [{ label: 'Link', url: form.link }] : [],
+    }).eq('id', form.id)
+    setModal(null); setForm({})
+    await init()
+  }
+
+  async function deleteProject(id) {
+    if (!window.confirm('Delete this project and all its milestones?')) return
+    await supabase.from('side_projects').delete().eq('id', id)
+    await init()
+  }
+
+  async function deleteMilestone(id) {
+    await supabase.from('side_project_milestones').delete().eq('id', id)
     await init()
   }
 
@@ -90,9 +123,13 @@ export function Projects() {
                 </div>
                 {proj.description && <div className="text-[12px] text-[var(--text-3)] mt-0.5">{proj.description}</div>}
               </div>
-              <button onClick={() => setExpanded(p => ({ ...p, [proj.id]: !isOpen }))} className="text-[var(--text-3)] hover:text-[var(--text)] ml-2">
-                {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-              </button>
+              <div className="flex items-center gap-2 ml-2">
+                <button onClick={() => editProject(proj)} className="text-[var(--text-3)] hover:text-[var(--text)] transition-colors" title="Edit"><Pencil size={14} /></button>
+                <button onClick={() => deleteProject(proj.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete"><Trash2 size={14} /></button>
+                <button onClick={() => setExpanded(p => ({ ...p, [proj.id]: !isOpen }))} className="text-[var(--text-3)] hover:text-[var(--text)]">
+                  {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                </button>
+              </div>
             </div>
 
             {isOpen && (
@@ -114,9 +151,10 @@ export function Projects() {
                   <div className="mb-3">
                     <Label className="mb-1.5">Milestones ({done}/{milestones.length})</Label>
                     {milestones.map(m => (
-                      <div key={m.id} className="flex items-center gap-2.5 py-1.5">
+                      <div key={m.id} className="flex items-center gap-2.5 py-1.5 group">
                         <Checkbox checked={m.done} onChange={() => toggleMilestone(m.id, m.done)} size={15} />
-                        <span className={`text-[12px] ${m.done ? 'line-through text-[var(--text-3)]' : ''}`}>{m.name}</span>
+                        <span className={`text-[12px] flex-1 ${m.done ? 'line-through text-[var(--text-3)]' : ''}`}>{m.name}</span>
+                        <button onClick={() => deleteMilestone(m.id)} className="text-[var(--text-3)] hover:text-crimson transition-colors" title="Delete"><Trash2 size={12} /></button>
                       </div>
                     ))}
                   </div>
@@ -160,6 +198,18 @@ export function Projects() {
           <Input label="Start date (optional)" type="date" value={form.start_date || ''} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
           <Input label="Target date (optional)" type="date" value={form.target_date || ''} onChange={e => setForm(p => ({ ...p, target_date: e.target.value }))} />
           <Btn size="full" onClick={addProject}>Add Project</Btn>
+        </div>
+      </Modal>
+
+      <Modal open={modal === 'edit'} onClose={() => { setModal(null); setForm({}) }} title="Edit Project">
+        <div className="flex flex-col gap-3">
+          <Input label="Project name" value={form.name || ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+          <Input label="Description" value={form.desc || ''} onChange={e => setForm(p => ({ ...p, desc: e.target.value }))} />
+          <Select label="Status" value={form.status || 'active'} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} options={STATUS_OPTIONS} />
+          <Input label="Link (optional)" value={form.link || ''} onChange={e => setForm(p => ({ ...p, link: e.target.value }))} />
+          <Input label="Start date (optional)" type="date" value={form.start_date || ''} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
+          <Input label="Target date (optional)" type="date" value={form.target_date || ''} onChange={e => setForm(p => ({ ...p, target_date: e.target.value }))} />
+          <Btn size="full" onClick={saveProjectEdit}>Save Changes</Btn>
         </div>
       </Modal>
     </div>
