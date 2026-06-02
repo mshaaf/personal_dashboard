@@ -28,7 +28,7 @@ export default function Login() {
 
   async function verify(e) {
     e.preventDefault()
-    if (code.trim().length < 6) return
+    if (code.trim().length < 8) return
     setVerifying(true)
     setError(null)
     const { error } = await verifyOtp(email.trim(), code.trim())
@@ -66,18 +66,18 @@ export default function Login() {
                 We sent a 6-digit code to <span className="text-[var(--text-2)]">{email}</span>. Enter it below to sign in.
               </div>
               <Input
-                label="6-digit code"
+                label="8-digit code"
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="123456"
+                maxLength={8}
+                placeholder="12345678"
                 value={code}
                 onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
                 autoFocus
               />
               {error && <div className="text-[11px] text-crimson">{error}</div>}
-              <Btn type="submit" size="full" disabled={verifying || code.trim().length < 6}>
+              <Btn type="submit" size="full" disabled={verifying || code.trim().length < 8}>
                 {verifying ? 'Verifying…' : 'Verify & sign in'}
               </Btn>
               <Btn variant="ghost" size="sm" onClick={reset}>Use a different email</Btn>
