@@ -319,9 +319,9 @@ export default function Home() {
                 </div>
                 <div>
                   <div className="font-mono text-[28px] font-bold">
-                    {bevel.hrv}<span className="text-[14px] font-normal">ms</span>
+                    {bevel.hrv}<span className="text-[14px] font-normal">%</span>
                   </div>
-                  <div className="text-[9px] font-bold tracking-[0.08em] uppercase text-[var(--text-3)] mt-1">HRV</div>
+                  <div className="text-[9px] font-bold tracking-[0.08em] uppercase text-[var(--text-3)] mt-1">Strain</div>
                 </div>
               </div>
             ) : (

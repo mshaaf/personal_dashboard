@@ -78,7 +78,7 @@ export default function Bevel() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-[22px] font-black tracking-[-0.03em]">Bevel</h1>
-          <p className="text-[13px] text-[var(--text-2)] mt-0.5">Sleep · Recovery · HRV — manual entry</p>
+          <p className="text-[13px] text-[var(--text-2)] mt-0.5">Sleep · Recovery · Strain — manual entry</p>
         </div>
         <Btn onClick={() => { setForm({ date: todayStr }); setModal(true) }}>
           <Plus size={13} /> Log Today
@@ -90,7 +90,7 @@ export default function Bevel() {
         {[
           { key: 'sleep_score', label: 'Sleep Score', unit: '' },
           { key: 'recovery', label: 'Recovery', unit: '' },
-          { key: 'hrv', label: 'HRV', unit: 'ms' },
+          { key: 'hrv', label: 'Strain', unit: '%' },
         ].map(({ key, label, unit }) => (
           <Card key={key} className="text-center py-6">
             <div className={`font-mono text-[28px] md:text-[38px] font-black leading-none ${scoreColor(today?.[key])}`}>
@@ -121,16 +121,16 @@ export default function Bevel() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <XAxis dataKey="date" tick={{ fontSize: 9 }} />
-                <YAxis tick={{ fontSize: 9 }} domain={['auto', 'auto']} />
+                <YAxis tick={{ fontSize: 9 }} domain={[0, 100]} />
                 <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11 }} />
-                <Line type="monotone" dataKey="hrv" stroke="#dc2626" strokeWidth={1.5} dot={{ r: 2, fill: '#dc2626' }} name="HRV (ms)" />
+                <Line type="monotone" dataKey="hrv" stroke="#dc2626" strokeWidth={1.5} dot={{ r: 2, fill: '#dc2626' }} name="Strain (%)" />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="flex gap-4 mt-2">
             <span className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]"><span className="w-3 h-0.5 bg-crimson inline-block rounded" /> Sleep</span>
             <span className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]"><span className="w-3 h-0.5 bg-warn inline-block rounded" /> Recovery</span>
-            <span className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]"><span className="w-2 h-2 rounded-full bg-crimson inline-block" /> HRV</span>
+            <span className="flex items-center gap-1.5 text-[10px] text-[var(--text-3)]"><span className="w-2 h-2 rounded-full bg-crimson inline-block" /> Strain</span>
           </div>
         </Card>
       )}
@@ -145,7 +145,7 @@ export default function Bevel() {
             <div className="flex gap-4 flex-1 text-[12px] font-mono">
               {e.sleep_score !== null && <span className={scoreColor(e.sleep_score)}>S: {e.sleep_score}</span>}
               {e.recovery !== null && <span className={scoreColor(e.recovery)}>R: {e.recovery}</span>}
-              {e.hrv !== null && <span>HRV: {e.hrv}ms</span>}
+              {e.hrv !== null && <span className={scoreColor(e.hrv)}>Strain: {e.hrv}%</span>}
             </div>
             {e.notes && <div className="text-[11px] text-[var(--text-3)] truncate max-w-[120px]">{e.notes}</div>}
             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -161,7 +161,7 @@ export default function Bevel() {
           <Input label="Date" type="date" value={form.date || todayStr} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
           <Input label="Sleep Score (0–100)" type="number" min="0" max="100" placeholder="86" value={form.sleep || ''} onChange={e => setForm(p => ({ ...p, sleep: e.target.value }))} />
           <Input label="Recovery (0–100)" type="number" min="0" max="100" placeholder="72" value={form.recovery || ''} onChange={e => setForm(p => ({ ...p, recovery: e.target.value }))} />
-          <Input label="HRV (ms)" type="number" placeholder="58" value={form.hrv || ''} onChange={e => setForm(p => ({ ...p, hrv: e.target.value }))} />
+          <Input label="Strain (0–100%)" type="number" min="0" max="100" placeholder="65" value={form.hrv || ''} onChange={e => setForm(p => ({ ...p, hrv: e.target.value }))} />
           <Input label="Notes (optional)" placeholder="e.g. bad sleep, stressed" value={form.notes || ''} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
           <Btn size="full" onClick={save}>Save Entry</Btn>
         </div>
